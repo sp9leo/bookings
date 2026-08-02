@@ -15,12 +15,6 @@
           <option v-for="item in otherUsersItems" :key="item.id" :value="item.id">{{ item.name }} ({{ item.subtitle }})</option>
         </select>
       </div>
-      <template v-else>
-        <select v-model="selectedItemId" class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 w-64">
-          <option value="">— Select your item —</option>
-          <option v-for="item in myItems" :key="item.id" :value="item.id">{{ item.name }} ({{ item.subtitle }})</option>
-        </select>
-      </template>
     </div>
 
     <!-- Empty: no items -->
@@ -198,7 +192,7 @@ const blockStart = ref('')
 const blockEnd = ref('')
 const blockDuration = ref(30)
 
-if (!isAdmin.value && myItems.value.length === 1) {
+if (!isAdmin.value && myItems.value.length > 0) {
   selectedItemId.value = myItems.value[0].id
   autoSelectDate()
 }
@@ -214,7 +208,13 @@ onMounted(async () => {
   } else {
     await bookingStore.fetchItems()
   }
-  if (selectedItemId.value) await bookingStore.fetchSlots(selectedItemId.value)
+  if (!isAdmin.value && !selectedItemId.value && myItems.value.length > 0) {
+    selectedItemId.value = myItems.value[0].id
+  }
+  if (selectedItemId.value) {
+    await bookingStore.fetchSlots(selectedItemId.value)
+    autoSelectDate()
+  }
 })
 
 function autoSelectDate() {
