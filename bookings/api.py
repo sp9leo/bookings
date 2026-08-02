@@ -35,10 +35,9 @@ def get_rooms():
 
 @frappe.whitelist(allow_guest=True)
 def get_slots(item, date=None):
-    """Get available slots for an item."""
+    """Get slots for an item (including booked/full ones; clients filter by availability)."""
     filters = {
         "reservation_item": item,
-        "is_full": 0
     }
     
     if date:
