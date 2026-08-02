@@ -232,8 +232,21 @@ def create_recurring_room_bookings(schedule, dates, period_number, notes=None):
 # Admin endpoints (require System Manager / Bookings Manager role)
 # ---------------------------------------------------------------------------
 
+def _is_admin():
+    return "System Manager" in frappe.get_roles() or "Bookings Manager" in frappe.get_roles()
+
+
 def _require_admin():
-    if "System Manager" not in frappe.get_roles() and "Bookings Manager" not in frappe.get_roles():
+    if not _is_admin():
+        frappe.throw("Not permitted", frappe.PermissionError)
+
+
+def _require_can_manage(item):
+    """Admins may manage any item; other users only items assigned to them."""
+    if _is_admin():
+        return
+    owner = frappe.db.get_value("Reservation Item", item, "user")
+    if owner != frappe.session.user:
         frappe.throw("Not permitted", frappe.PermissionError)
 
 
@@ -461,7 +474,7 @@ def delete_user(name):
 @frappe.whitelist()
 def add_available_slots(item, date, start_time, end_time, duration=30):
     """Create Available Slot records for an item between start and end at intervals."""
-    _require_admin()
+    _require_can_manage(item)
     return _create_slots(item, [date], start_time, end_time, duration)
 
 
@@ -515,7 +528,8 @@ def _create_slots(items, dates, start_time, end_time, duration):
 @frappe.whitelist()
 def delete_available_slot(name):
     """Delete an Available Slot. Returns has_bookings if it has bookings."""
-    _require_admin()
+    item = frappe.db.get_value("Available Slot", name, "reservation_item")
+    _require_can_manage(item)
     booked = frappe.db.get_value("Available Slot", name, "booked") or 0
     if int(booked) > 0:
         return {"has_bookings": int(booked)}
