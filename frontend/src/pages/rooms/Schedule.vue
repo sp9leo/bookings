@@ -1,7 +1,7 @@
 <template>
   <div class="max-w-full mx-auto px-4 py-6">
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 mb-2">Weekly Schedule</h1>
+      <h1 class="text-2xl font-bold text-gray-900 mb-2">Daily Schedule</h1>
       <p class="text-gray-500">View and book available rooms</p>
     </div>
 
@@ -101,114 +101,7 @@
       </div>
     </div>
 
-    <div class="mt-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
-        <h2 class="text-lg font-semibold text-gray-900">Weekly Overview</h2>
-        <p class="text-sm text-gray-500">Room availability for the week</p>
-      </div>
-
-      <div class="overflow-x-auto">
-        <div class="min-w-[800px]">
-          <div class="flex">
-            <div class="w-24 flex-shrink-0 px-4 py-3 bg-gray-50 border-b border-r border-gray-200">
-              <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Day</span>
-            </div>
-            <div
-              v-for="room in rooms"
-              :key="room.id"
-              class="flex-1 min-w-[150px] px-4 py-3 bg-gray-50 border-b border-r border-gray-200 text-center"
-            >
-              <span class="text-sm font-semibold text-gray-700">{{ room.name }}</span>
-            </div>
-          </div>
-
-          <div
-            v-for="day in weekDays"
-            :key="day.dateStr"
-            class="flex"
-          >
-            <div class="w-24 flex-shrink-0 px-4 py-3 bg-white border-b border-r border-gray-200">
-              <div :class="{ 'text-primary-600 font-semibold': day.isToday }">
-                <p class="text-sm font-medium text-gray-900">{{ day.dayName }}</p>
-                <p class="text-xs text-gray-500">{{ day.dateShort }}</p>
-              </div>
-            </div>
-            <div
-              v-for="room in rooms"
-              :key="`${day.dateStr}-${room.id}`"
-              class="flex-1 min-w-[150px] px-2 py-2 border-b border-r border-gray-100"
-            >
-              <WeeklySlotCell
-                :slot="getWeekSlot(room.id, day.dateStr)"
-                :room-name="room.name"
-                :room-id="room.id"
-                :date-str="day.dateStr"
-                @click="handleWeekSlotClick"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="mt-8">
-      <div class="px-2 mb-3">
-        <h2 class="text-sm font-semibold text-gray-700">Weekly Schedule</h2>
-      </div>
-
-      <div
-        v-for="day in weekDays"
-        :key="day.dateStr"
-        class="bg-white rounded-lg shadow-sm border border-gray-100 mb-3 overflow-hidden"
-      >
-        <div class="px-3 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2 text-xs">
-          <span class="font-medium text-gray-700">{{ day.dayName }}</span>
-          <span class="text-gray-400">{{ day.dateShort }}</span>
-          <span v-if="day.isToday" class="bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded text-[10px]">Today</span>
-        </div>
-
-        <div class="overflow-x-auto">
-          <div class="min-w-[800px]">
-            <div class="flex">
-              <div class="w-28 flex-shrink-0 px-2 py-1.5 bg-gray-50 border-r border-gray-200">
-                <span class="text-[10px] font-medium text-gray-500 uppercase">Room</span>
-              </div>
-              <div class="flex-1 flex">
-                <div
-                  v-for="time in timeSlots"
-                  :key="time"
-                  class="flex-shrink-0 w-16 px-1 py-1.5 bg-gray-50 border-r border-gray-200 text-center"
-                >
-                  <span class="text-[10px] font-medium text-gray-600">{{ time }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div
-              v-for="room in rooms"
-              :key="`${day.dateStr}-${room.id}`"
-              class="flex"
-            >
-              <div class="w-28 flex-shrink-0 px-2 py-1.5 bg-white border-r border-gray-200">
-                <p class="text-xs font-medium text-gray-800 truncate">{{ room.name }}</p>
-              </div>
-              <div class="flex-1 flex">
-                <div
-                  v-for="time in timeSlots"
-                  :key="`${day.dateStr}-${room.id}-${time}`"
-                  class="flex-shrink-0 w-16 border-r border-gray-100"
-                >
-                  <TimeSlotCell
-                    :slot="getSlotForDay(room.id, day.dateStr, time)"
-                    @click="handleSlotClick"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    
 
     <BookingModal
       :show="showModal"
@@ -283,7 +176,6 @@ import { useAuthStore, MOCK_USERS } from '@/stores/auth'
 import { useBookingStore } from '@/stores/booking'
 import TimeSlotCell from '@/components/schedule/TimeSlotCell.vue'
 import BookingModal from '@/components/schedule/BookingModal.vue'
-import WeeklySlotCell from '@/components/schedule/WeeklySlotCell.vue'
 
 interface ScheduleSlot {
   id: string
@@ -322,21 +214,6 @@ onMounted(async () => {
 
 const currentDate = computed(() => bookingStore.currentScheduleDate)
 
-const weekDays = computed(() => {
-  const start = startOfWeek(currentDate.value, { weekStartsOn: 1 })
-  return Array.from({ length: 7 }, (_, i) => {
-    const date = addDays(start, i)
-    const dateStr = format(date, 'yyyy-MM-dd')
-    return {
-      date,
-      dateStr,
-      dayName: format(date, 'EEE'),
-      dateShort: format(date, 'MMM d'),
-      isToday: checkIsToday(date)
-    }
-  })
-})
-
 const formattedDate = computed(() => {
   return format(currentDate.value, 'EEEE, MMMM d, yyyy')
 })
@@ -373,44 +250,6 @@ function getSlot(roomId: string, time: string): ScheduleSlot {
     time,
     status: isPast ? 'past' : 'free',
   }
-}
-
-function getSlotForDay(roomId: string, dateStr: string, time: string): ScheduleSlot {
-  const slot = bookingStore.getScheduleSlot(roomId, dateStr, time)
-  
-  if (slot) {
-    slot.isOwn = currentUser.value ? slot.bookedBy === currentUser.value.name : false
-    return slot
-  }
-  
-  const slotDateTime = new Date(`${dateStr}T${time}`)
-  const now = new Date()
-  const isPast = slotDateTime < now
-  
-  return {
-    id: `new-${roomId}-${dateStr}-${time}`,
-    roomId,
-    date: dateStr,
-    time,
-    status: isPast ? 'past' : 'free',
-  }
-}
-
-function getWeekSlot(roomId: string, dateStr: string): { bookedCount: number; totalSlots: number; hasOwnBooking: boolean } {
-  const slots = bookingStore.scheduleSlots.filter(s => 
-    s.roomId === roomId && s.date === dateStr
-  )
-  
-  const bookedCount = slots.filter(s => s.status === 'booked').length
-  const totalSlots = slots.length
-  const userName = currentUser.value?.name
-  const hasOwnBooking = userName ? slots.some(s => s.bookedBy === userName) : false
-  
-  return { bookedCount, totalSlots, hasOwnBooking }
-}
-
-function handleWeekSlotClick(data: { roomId: string; dateStr: string }) {
-  bookingStore.setScheduleDate(new Date(data.dateStr))
 }
 
 function handleSlotClick(slot: ScheduleSlot) {

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { apiGet, apiPost } from '@/composables/api'
+import { apiGet, apiPost, getCsrfToken } from '@/composables/api'
 import { sessionUser, getSessionUserFromCookie } from '@/data/session'
 
 export interface CurrentUser {
@@ -84,7 +84,10 @@ export const useAuthStore = defineStore('auth', {
 
     async logout() {
       try {
-        await fetch('/api/method/logout', { method: 'POST' })
+        await fetch('/api/method/logout', {
+          method: 'POST',
+          headers: { 'X-Frappe-CSRF-Token': getCsrfToken() },
+        })
       } catch {
         // ignore
       }

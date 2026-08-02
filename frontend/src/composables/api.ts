@@ -55,11 +55,16 @@ export async function apiGet<T = any>(url: string, params?: Record<string, any>)
   }
 }
 
+export function getCsrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/)
+  return match ? decodeURIComponent(match[1]) : ''
+}
+
 export async function apiPost<T = any>(url: string, body: Record<string, any>): Promise<T | null> {
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': getCsrfToken() },
       body: JSON.stringify(body),
     })
     const json = await res.json()
