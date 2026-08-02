@@ -5,6 +5,14 @@ import { apiGet, apiPost } from '@/composables/api'
 
 const API = '/api/method/bookings.api'
 
+async function safePost<T = any>(url: string, body: Record<string, any>): Promise<T | null> {
+  try {
+    return await apiPost<T>(url, body)
+  } catch {
+    return null
+  }
+}
+
 export interface Item {
   id: string
   name: string
@@ -576,7 +584,7 @@ export const useBookingStore = defineStore('booking', {
     },
 
     async cancelReservation(token: string): Promise<boolean> {
-      const res = await apiPost<any>(`${API}.cancel_reservation`, { access_token: token })
+      const res = await safePost<any>(`${API}.cancel_reservation`, { access_token: token })
       const reservation = this.reservations.find((r) => r.accessToken === token)
       if (res?.success && reservation) {
         reservation.status = 'Cancelled'
@@ -615,7 +623,7 @@ export const useBookingStore = defineStore('booking', {
       })
       if (!slotDoc) return null
 
-      const res = await apiPost<any>(`${API}.book_room`, {
+      const res = await safePost<any>(`${API}.book_room`, {
         schedule_slot: slotDoc.name,
         notes: description || null,
       })
@@ -688,7 +696,7 @@ export const useBookingStore = defineStore('booking', {
 
       if (dates.length === 0) return null
 
-      const res = await apiPost<any>(`${API}.create_recurring_room_bookings`, {
+      const res = await safePost<any>(`${API}.create_recurring_room_bookings`, {
         schedule: schedule.name,
         dates: JSON.stringify(dates),
         period_number: period.period_number,
@@ -706,7 +714,7 @@ export const useBookingStore = defineStore('booking', {
     async updateScheduleSlotDescription(bookingRef: string, description: string, _scope: Scope = 'this'): Promise<boolean> {
       const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
       if (!slot || slot.status !== 'booked') return false
-      const res = await apiPost<any>(`${API}.update_slot_details`, { slot: slot.id, description })
+      const res = await safePost<any>(`${API}.update_slot_details`, { slot: slot.id, description })
       if (!res?.success) return false
       slot.description = description
       return true
@@ -715,7 +723,7 @@ export const useBookingStore = defineStore('booking', {
     async updateScheduleSlotBookedBy(bookingRef: string, name: string, _scope: Scope = 'this'): Promise<boolean> {
       const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
       if (!slot || slot.status !== 'booked') return false
-      const res = await apiPost<any>(`${API}.update_slot_details`, { slot: slot.id, booked_by: name })
+      const res = await safePost<any>(`${API}.update_slot_details`, { slot: slot.id, booked_by: name })
       if (!res?.success) return false
       slot.bookedBy = name
       return true
@@ -726,7 +734,7 @@ export const useBookingStore = defineStore('booking', {
     },
 
     async cancelScheduleBooking(bookingRef: string, _scope: Scope = 'this'): Promise<boolean> {
-      const res = await apiPost<any>(`${API}.cancel_room_booking`, { booking_ref: bookingRef })
+      const res = await safePost<any>(`${API}.cancel_room_booking`, { booking_ref: bookingRef })
       if (!res?.success) return false
       const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
       if (slot) {
@@ -752,7 +760,7 @@ export const useBookingStore = defineStore('booking', {
       const booking = this.roomBookings.find((b) => b.bookingRef === bookingRef)
       if (!booking) return null
 
-      const res = await apiPost<any>(`${API}.update_booking_time`, {
+      const res = await safePost<any>(`${API}.update_booking_time`, {
         booking_ref: bookingRef,
         new_start_time: newTime,
         new_end_time: toEndTime(newTime),
@@ -785,7 +793,7 @@ export const useBookingStore = defineStore('booking', {
         location: data?.location || '',
         features: (data?.features || []).join(', '),
       }
-      const res = await apiPost<any>(`${API}.create_item`, { data: itemData })
+      const res = await safePost<any>(`${API}.create_item`, { data: itemData })
       if (!res?.name) return null
       await this.fetchRooms()
       return { id: res.name, name: data?.name || '', capacity: data?.capacity || 0, location: data?.location || '', features: data?.features || [] }
@@ -798,7 +806,7 @@ export const useBookingStore = defineStore('booking', {
       if (data?.capacity !== undefined) itemData.capacity = data.capacity
       if (data?.location !== undefined) itemData.location = data.location
       if (data?.features !== undefined) itemData.features = (data.features || []).join(', ')
-      const res = await apiPost<any>(`${API}.update_item`, { name: id, data: itemData })
+      const res = await safePost<any>(`${API}.update_item`, { name: id, data: itemData })
       if (!res?.success) return false
       await this.fetchRooms()
       return true
@@ -806,7 +814,7 @@ export const useBookingStore = defineStore('booking', {
 
     async removeRoom(id?: string, force?: boolean): Promise<boolean | { hasBookings: number }> {
       if (!id) return false
-      const res = await apiPost<any>(`${API}.delete_item`, { name: id, force: force ? 1 : 0 })
+      const res = await safePost<any>(`${API}.delete_item`, { name: id, force: force ? 1 : 0 })
       if (res?.has_bookings) return { hasBookings: res.has_bookings }
       if (!res?.success) return false
       this.rooms = this.rooms.filter((r) => r.id !== id)
@@ -822,7 +830,7 @@ export const useBookingStore = defineStore('booking', {
         user: data?.userId || null,
         group: data?.groupId || null,
       }
-      const res = await apiPost<any>(`${API}.create_item`, { data: itemData })
+      const res = await safePost<any>(`${API}.create_item`, { data: itemData })
       if (!res?.name) return null
       await this.fetchAdminItems()
       return { id: res.name, name: data?.name || '', subtitle: data?.subtitle || '', type: data?.type || 'Person', class: data?.class || '', slotsAvailable: 0, userId: data?.userId || '', groupId: data?.groupId }
@@ -837,7 +845,7 @@ export const useBookingStore = defineStore('booking', {
       if (data?.class !== undefined) itemData.class = data.class
       if (data?.userId !== undefined) itemData.user = data.userId || null
       if (data?.groupId !== undefined) itemData.group = data.groupId || null
-      const res = await apiPost<any>(`${API}.update_item`, { name: id, data: itemData })
+      const res = await safePost<any>(`${API}.update_item`, { name: id, data: itemData })
       if (!res?.success) return false
       await this.fetchAdminItems()
       return true
@@ -845,7 +853,7 @@ export const useBookingStore = defineStore('booking', {
 
     async removeItem(id?: string, force?: boolean): Promise<boolean | { hasBookings: number }> {
       if (!id) return false
-      const res = await apiPost<any>(`${API}.delete_item`, { name: id, force: force ? 1 : 0 })
+      const res = await safePost<any>(`${API}.delete_item`, { name: id, force: force ? 1 : 0 })
       if (res?.has_bookings) return { hasBookings: res.has_bookings }
       if (!res?.success) return false
       this.items = this.items.filter((i) => i.id !== id)
@@ -854,7 +862,7 @@ export const useBookingStore = defineStore('booking', {
 
     async addGroup(name?: string): Promise<ItemGroup | null> {
       if (!name) return null
-      const res = await apiPost<any>(`${API}.create_group`, { group_name: name })
+      const res = await safePost<any>(`${API}.create_group`, { group_name: name })
       if (!res?.name) return null
       await this.fetchGroups()
       return { id: res.name, name }
@@ -862,7 +870,7 @@ export const useBookingStore = defineStore('booking', {
 
     async updateGroup(id?: string, name?: string): Promise<boolean> {
       if (!id || !name) return false
-      const res = await apiPost<any>(`${API}.update_group`, { name: id, group_name: name })
+      const res = await safePost<any>(`${API}.update_group`, { name: id, group_name: name })
       if (!res?.success) return false
       await this.fetchGroups()
       return true
@@ -870,7 +878,7 @@ export const useBookingStore = defineStore('booking', {
 
     async removeGroup(id?: string): Promise<boolean> {
       if (!id) return false
-      const res = await apiPost<any>(`${API}.delete_group`, { name: id })
+      const res = await safePost<any>(`${API}.delete_group`, { name: id })
       if (!res?.success) return false
       this.groups = this.groups.filter((g) => g.id !== id)
       return true
@@ -899,7 +907,7 @@ export const useBookingStore = defineStore('booking', {
 
     async addPersonBlock(itemId?: string, date?: string, start?: string, end?: string, duration?: number): Promise<number> {
       if (!itemId || !date || !start || !end || !duration) return 0
-      const res = await apiPost<any>(`${API}.add_available_slots`, {
+      const res = await safePost<any>(`${API}.add_available_slots`, {
         item: itemId,
         date,
         start_time: start,
@@ -913,7 +921,7 @@ export const useBookingStore = defineStore('booking', {
 
     async removePersonSlot(id?: string): Promise<boolean | { hasBookings: number }> {
       if (!id) return false
-      const res = await apiPost<any>(`${API}.delete_available_slot`, { name: id })
+      const res = await safePost<any>(`${API}.delete_available_slot`, { name: id })
       if (res?.has_bookings) return { hasBookings: res.has_bookings }
       if (!res?.success) return false
       this.slots = this.slots.filter((s) => s.id !== id)
@@ -922,7 +930,7 @@ export const useBookingStore = defineStore('booking', {
 
     async bulkAddPersonSlots(itemIds?: string[], dates?: string[], start?: string, end?: string, duration?: number): Promise<number> {
       if (!itemIds || !dates || itemIds.length === 0 || dates.length === 0) return 0
-      const res = await apiPost<any>(`${API}.bulk_add_available_slots`, {
+      const res = await safePost<any>(`${API}.bulk_add_available_slots`, {
         items: JSON.stringify(itemIds),
         dates: JSON.stringify(dates),
         start_time: start,

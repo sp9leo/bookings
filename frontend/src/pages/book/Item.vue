@@ -124,6 +124,9 @@
                 <span v-if="submitting">Confirming...</span>
                 <span v-else>Confirm Booking</span>
               </button>
+              <p v-if="errorMsg" class="mt-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                {{ errorMsg }}
+              </p>
             </form>
           </div>
         </div>
@@ -149,6 +152,7 @@ const item = computed(() => bookingStore.getItemById(itemId))
 const selectedDate = ref<Date | null>(null)
 const selectedSlot = ref<any>(null)
 const submitting = ref(false)
+const errorMsg = ref('')
 const form = reactive({
   name: '',
   email: '',
@@ -218,26 +222,32 @@ async function submitBooking() {
   if (!isFormValid.value || !selectedSlot.value) return
 
   submitting.value = true
+  errorMsg.value = ''
 
-  const reservation = await bookingStore.createReservation(selectedSlot.value, form.name, form.email, form.notes)
+  try {
+    const reservation = await bookingStore.createReservation(selectedSlot.value, form.name, form.email, form.notes)
 
-  submitting.value = false
-
-  if (!reservation) {
-    return
-  }
-
-  router.push({
-    path: '/book/confirm',
-    query: {
-      token: reservation.accessToken,
-      ref: reservation.bookingRef,
-      name: reservation.customerName,
-      email: reservation.customerEmail,
-      item: reservation.itemName,
-      date: reservation.date,
-      time: `${reservation.from} - ${reservation.to}`
+    if (!reservation) {
+      errorMsg.value = 'Booking failed — no confirmation received. Please try again.'
+      return
     }
-  })
+
+    router.push({
+      path: '/book/confirm',
+      query: {
+        token: reservation.accessToken,
+        ref: reservation.bookingRef,
+        name: reservation.customerName,
+        email: reservation.customerEmail,
+        item: reservation.itemName,
+        date: reservation.date,
+        time: `${reservation.from} - ${reservation.to}`
+      }
+    })
+  } catch (e) {
+    errorMsg.value = e instanceof Error && e.message ? e.message : 'Booking failed — please try again.'
+  } finally {
+    submitting.value = false
+  }
 }
 </script>

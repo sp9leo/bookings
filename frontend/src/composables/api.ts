@@ -1,5 +1,32 @@
 import { ref } from 'vue'
 
+export class ApiError extends Error {
+  status?: number
+  constructor(message: string, status?: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
+function extractErrorMessage(json: any, status: number): string {
+  if (!json) return `Request failed (${status})`
+  const serverMessages = json._server_messages
+  if (Array.isArray(serverMessages) && serverMessages.length) {
+    for (const raw of serverMessages) {
+      try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+        if (parsed?.message) return parsed.message
+      } catch {
+        if (typeof raw === 'string' && raw) return raw
+      }
+    }
+  }
+  if (typeof json.message === 'string') return json.message
+  if (typeof json.exception === 'string') return json.exception
+  return `Request failed (${status})`
+}
+
 export function useFetch<T = any>(
   url: string,
   params?: Record<string, any>,
@@ -60,16 +87,23 @@ export function getCsrfToken(): string {
   return match ? decodeURIComponent(match[1]) : ''
 }
 
-export async function apiPost<T = any>(url: string, body: Record<string, any>): Promise<T | null> {
+export async function apiPost<T = any>(url: string, body: Record<string, any>): Promise<T> {
+  let res: Response
   try {
-    const res = await fetch(url, {
+    res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': getCsrfToken() },
       body: JSON.stringify(body),
     })
-    const json = await res.json()
-    return (json.message ?? json) as T
   } catch {
-    return null
+    throw new ApiError('Network error — could not reach the server')
   }
+
+  if (!res.ok) {
+    const json = await res.json().catch(() => null)
+    throw new ApiError(extractErrorMessage(json, res.status), res.status)
+  }
+
+  const json = await res.json().catch(() => null)
+  return (json?.message ?? json) as T
 }
