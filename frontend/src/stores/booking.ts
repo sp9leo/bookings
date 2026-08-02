@@ -537,6 +537,13 @@ export const useBookingStore = defineStore('booking', {
       this.reservations = (data || []).map((r) => mapReservation(r, itemNames))
     },
 
+    async fetchAllReservations() {
+      if (this.items.length === 0) await this.fetchAdminItems()
+      const itemNames = new Map(this.items.map((i) => [i.id, i.name]))
+      const data = (await apiGet<any[]>(`${API}.get_all_reservations`)) as any[] | null
+      this.reservations = (data || []).map((r) => mapReservation(r, itemNames))
+    },
+
     async fetchMyRoomBookings() {
       const roomNames = new Map(this.rooms.map((r) => [r.id, r.name]))
       const data = (await apiGet(`${API}.get_my_room_bookings`)) as any[] | null
@@ -544,12 +551,21 @@ export const useBookingStore = defineStore('booking', {
     },
 
     async fetchMyBookings() {
-      await Promise.all([
-        this.fetchMySessionReservations(),
-        this.fetchMyTutorBookings(),
-        this.fetchRooms(),
-        this.fetchMyRoomBookings(),
-      ])
+      const authStore = useAuthStore()
+      if (authStore.isAdmin) {
+        await Promise.all([
+          this.fetchAllReservations(),
+          this.fetchRooms(),
+          this.fetchMyRoomBookings(),
+        ])
+      } else {
+        await Promise.all([
+          this.fetchMySessionReservations(),
+          this.fetchMyTutorBookings(),
+          this.fetchRooms(),
+          this.fetchMyRoomBookings(),
+        ])
+      }
     },
 
     async createReservation(

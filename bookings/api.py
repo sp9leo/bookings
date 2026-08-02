@@ -146,6 +146,26 @@ def get_item_reservations(item):
 
 
 @frappe.whitelist()
+def get_all_reservations():
+    """Get all person-item reservations (admin)."""
+    _require_admin()
+    persons = frappe.get_all("Reservation Item", filters={"item_type": "Person"}, pluck="name")
+    if not persons:
+        return []
+    reservations = frappe.get_all(
+        "Reservation",
+        filters={
+            "reservation_item": ["in", persons],
+            "status": ["!=", "Cancelled"],
+        },
+        fields=["name", "booking_ref", "customer_name", "customer_email",
+                "from_time", "to_time", "status", "reservation_item", "slot"],
+        order_by="from_time desc"
+    )
+    return reservations
+
+
+@frappe.whitelist()
 def get_current_user():
     """Get the current logged-in user info (or Guest)."""
     user = frappe.session.user
