@@ -1,0 +1,134 @@
+{
+ "app": "bookings",
+ "charts": [],
+ "content": "[{\"id\":\"nPeYxlB4aS\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Bookings</span>\",\"col\":12}},{\"id\":\"gK7jM2pR1q\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Reservation\",\"col\":3}},{\"id\":\"hL8kN3qS2r\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Reservation Item\",\"col\":3}},{\"id\":\"jN0mP5sU4t\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Room Booking\",\"col\":3}},{\"id\":\"kO1nQ6tV5u\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Schedule\",\"col\":3}},{\"id\":\"lP2oR7uW6v\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item Group\",\"col\":3}}]",
+ "creation": "2026-02-01 09:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "calendar",
+ "idx": 0,
+ "indicator_color": "blue",
+ "is_hidden": 0,
+ "label": "Bookings",
+ "link_type": "DocType",
+ "modified": "2026-02-01 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bookings",
+ "name": "bookings",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "System",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "System Manager"
+  }
+ ],
+ "sidebar_items": [
+  {
+   "type": "Link",
+   "label": "Reservation",
+   "link_type": "DocType",
+   "link_to": "Reservation",
+   "icon": "book"
+  },
+  {
+   "type": "Link",
+   "label": "Reservation Item",
+   "link_type": "DocType",
+   "link_to": "Reservation Item",
+   "icon": "bookmark"
+  },
+  {
+   "type": "Link",
+   "label": "Room Booking",
+   "link_type": "DocType",
+   "link_to": "Room Booking",
+   "icon": "home"
+  },
+  {
+   "type": "Link",
+   "label": "Schedule",
+   "link_type": "DocType",
+   "link_to": "Schedule",
+   "icon": "calendar"
+  },
+  {
+   "type": "Link",
+   "label": "Schedule periods",
+   "link_type": "DocType",
+   "link_to": "Schedule periods",
+   "icon": "layers"
+  },
+  {
+   "type": "Link",
+   "label": "Schedule Slot",
+   "link_type": "DocType",
+   "link_to": "Schedule Slot",
+   "icon": "clock"
+  },
+  {
+   "type": "Link",
+   "label": "Available Slot",
+   "link_type": "DocType",
+   "link_to": "Available Slot",
+   "icon": "clock"
+  },
+  {
+   "type": "Link",
+   "label": "Item Group",
+   "link_type": "DocType",
+   "link_to": "Item Group",
+   "icon": "folder"
+  }
+ ],
+ "sequence_id": 28.0,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Reservation",
+   "link_to": "Reservation",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Cyan",
+   "doc_view": "List",
+   "label": "Reservation Item",
+   "link_to": "Reservation Item",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "label": "Room Booking",
+   "link_to": "Room Booking",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Purple",
+   "doc_view": "List",
+   "label": "Schedule",
+   "link_to": "Schedule",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "Item Group",
+   "link_to": "Item Group",
+   "stats_filter": "[]",
+   "type": "DocType"
+  }
+ ],
+ "title": "Bookings",
+ "type": "Workspace"
+}

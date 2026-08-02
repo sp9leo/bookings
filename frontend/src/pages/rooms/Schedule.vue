@@ -1,0 +1,467 @@
+<template>
+  <div class="max-w-full mx-auto px-4 py-6">
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900 mb-2">Weekly Schedule</h1>
+      <p class="text-gray-500">View and book available rooms</p>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
+        <button
+          @click="navigateDay('prev')"
+          class="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+        >
+          <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        <div class="text-center">
+          <h2 class="text-lg font-semibold text-gray-900">{{ formattedDate }}</h2>
+          <button
+            v-if="!isToday"
+            @click="goToToday"
+            class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          >
+            This Week
+          </button>
+        </div>
+
+        <button
+          @click="navigateDay('next')"
+          class="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+        >
+          <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <div class="min-w-[1000px]">
+          <div class="flex">
+            <div class="w-40 flex-shrink-0 px-4 py-4 bg-gray-50 border-b border-r border-gray-200">
+              <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Room</span>
+            </div>
+            <div class="flex-1 flex overflow-x-auto">
+              <div
+                v-for="time in timeSlots"
+                :key="time"
+                class="flex-shrink-0 w-28 px-2 py-4 bg-gray-50 border-b border-r border-gray-200 text-center"
+              >
+                <span class="text-sm font-semibold text-gray-700">{{ time }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-for="room in rooms"
+            :key="room.id"
+            class="flex border-b border-gray-100 hover:bg-gray-50/50 transition-colors"
+          >
+            <div class="w-40 flex-shrink-0 px-4 py-4 bg-white border-r border-gray-200">
+              <p class="font-semibold text-gray-900">{{ room.name }}</p>
+              <p class="text-sm text-gray-500">{{ room.location }}</p>
+            </div>
+            <div class="flex-1 flex">
+              <div
+                v-for="time in timeSlots"
+                :key="`${room.id}-${time}`"
+                class="flex-shrink-0 w-28 border-r border-gray-100"
+              >
+                <TimeSlotCell
+                  :slot="getSlot(room.id, time)"
+                  @click="handleSlotClick"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-4 bg-gray-50 border-t border-gray-100">
+        <div class="flex items-center gap-6 text-xs">
+          <div class="flex items-center gap-2">
+            <div class="w-4 h-4 rounded bg-emerald-100 border-2 border-emerald-300"></div>
+            <span class="text-gray-600">Available</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-4 h-4 rounded bg-blue-100 border-2 border-blue-300"></div>
+            <span class="text-gray-600">Your Booking</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-4 h-4 rounded bg-gray-200"></div>
+            <span class="text-gray-600">Booked</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-4 h-4 rounded bg-gray-100"></div>
+            <span class="text-gray-600">Past</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
+        <h2 class="text-lg font-semibold text-gray-900">Weekly Overview</h2>
+        <p class="text-sm text-gray-500">Room availability for the week</p>
+      </div>
+
+      <div class="overflow-x-auto">
+        <div class="min-w-[800px]">
+          <div class="flex">
+            <div class="w-24 flex-shrink-0 px-4 py-3 bg-gray-50 border-b border-r border-gray-200">
+              <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Day</span>
+            </div>
+            <div
+              v-for="room in rooms"
+              :key="room.id"
+              class="flex-1 min-w-[150px] px-4 py-3 bg-gray-50 border-b border-r border-gray-200 text-center"
+            >
+              <span class="text-sm font-semibold text-gray-700">{{ room.name }}</span>
+            </div>
+          </div>
+
+          <div
+            v-for="day in weekDays"
+            :key="day.dateStr"
+            class="flex"
+          >
+            <div class="w-24 flex-shrink-0 px-4 py-3 bg-white border-b border-r border-gray-200">
+              <div :class="{ 'text-primary-600 font-semibold': day.isToday }">
+                <p class="text-sm font-medium text-gray-900">{{ day.dayName }}</p>
+                <p class="text-xs text-gray-500">{{ day.dateShort }}</p>
+              </div>
+            </div>
+            <div
+              v-for="room in rooms"
+              :key="`${day.dateStr}-${room.id}`"
+              class="flex-1 min-w-[150px] px-2 py-2 border-b border-r border-gray-100"
+            >
+              <WeeklySlotCell
+                :slot="getWeekSlot(room.id, day.dateStr)"
+                :room-name="room.name"
+                :room-id="room.id"
+                :date-str="day.dateStr"
+                @click="handleWeekSlotClick"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-8">
+      <div class="px-2 mb-3">
+        <h2 class="text-sm font-semibold text-gray-700">Weekly Schedule</h2>
+      </div>
+
+      <div
+        v-for="day in weekDays"
+        :key="day.dateStr"
+        class="bg-white rounded-lg shadow-sm border border-gray-100 mb-3 overflow-hidden"
+      >
+        <div class="px-3 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-2 text-xs">
+          <span class="font-medium text-gray-700">{{ day.dayName }}</span>
+          <span class="text-gray-400">{{ day.dateShort }}</span>
+          <span v-if="day.isToday" class="bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded text-[10px]">Today</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <div class="min-w-[800px]">
+            <div class="flex">
+              <div class="w-28 flex-shrink-0 px-2 py-1.5 bg-gray-50 border-r border-gray-200">
+                <span class="text-[10px] font-medium text-gray-500 uppercase">Room</span>
+              </div>
+              <div class="flex-1 flex">
+                <div
+                  v-for="time in timeSlots"
+                  :key="time"
+                  class="flex-shrink-0 w-16 px-1 py-1.5 bg-gray-50 border-r border-gray-200 text-center"
+                >
+                  <span class="text-[10px] font-medium text-gray-600">{{ time }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              v-for="room in rooms"
+              :key="`${day.dateStr}-${room.id}`"
+              class="flex"
+            >
+              <div class="w-28 flex-shrink-0 px-2 py-1.5 bg-white border-r border-gray-200">
+                <p class="text-xs font-medium text-gray-800 truncate">{{ room.name }}</p>
+              </div>
+              <div class="flex-1 flex">
+                <div
+                  v-for="time in timeSlots"
+                  :key="`${day.dateStr}-${room.id}-${time}`"
+                  class="flex-shrink-0 w-16 border-r border-gray-100"
+                >
+                  <TimeSlotCell
+                    :slot="getSlotForDay(room.id, day.dateStr, time)"
+                    @click="handleSlotClick"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <BookingModal
+      :show="showModal"
+      :slot="selectedSlot"
+      :room-name="selectedRoomName"
+      :user-name="currentUser?.name || ''"
+      :show-recurrence="false"
+      :is-admin="authStore.isAdmin"
+      :users="allUsers"
+      @confirm="handleConfirm"
+      @cancel="handleCancel"
+    />
+
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showCancelModal"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <div
+            class="absolute inset-0 bg-black/50"
+            @click="showCancelModal = false"
+          ></div>
+
+          <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-2">
+              Your Reservation
+            </h2>
+            <p class="text-gray-500 mb-6">
+              You have a reservation for this slot. What would you like to do?
+            </p>
+
+            <div class="bg-gray-50 rounded-xl p-4 mb-6">
+              <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <div>
+                  <p class="font-semibold text-gray-900">{{ selectedRoomName }}</p>
+                  <p class="text-sm text-gray-500">{{ selectedSlot?.time }} - {{ getEndTime(selectedSlot?.time || '') }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex gap-3">
+              <button
+                @click="showCancelModal = false"
+                class="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Keep Booking
+              </button>
+              <button
+                @click="handleCancelBooking"
+                class="flex-1 py-3 bg-red-500 text-white font-semibold rounded-xl hover:bg-red-600 transition-colors"
+              >
+                Cancel Booking
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { format, isToday as checkIsToday, addDays, startOfWeek } from 'date-fns'
+import { useAuthStore, MOCK_USERS } from '@/stores/auth'
+import { useBookingStore } from '@/stores/booking'
+import TimeSlotCell from '@/components/schedule/TimeSlotCell.vue'
+import BookingModal from '@/components/schedule/BookingModal.vue'
+import WeeklySlotCell from '@/components/schedule/WeeklySlotCell.vue'
+
+interface ScheduleSlot {
+  id: string
+  roomId: string
+  date: string
+  time: string
+  status: 'free' | 'booked' | 'past'
+  bookedBy?: string
+  bookingRef?: string
+  isOwn?: boolean
+}
+
+const bookingStore = useBookingStore()
+const authStore = useAuthStore()
+
+const rooms = computed(() => bookingStore.rooms)
+const timeSlots = computed(() => bookingStore.timeSlots)
+const currentUser = computed(() => authStore.currentUser)
+const allUsers = computed(() => MOCK_USERS)
+
+const selectedSlot = ref<ScheduleSlot | null>(null)
+const selectedRoomName = ref('')
+const showModal = ref(false)
+const showCancelModal = ref(false)
+
+onMounted(async () => {
+  if (bookingStore.rooms.length === 0) await bookingStore.fetchRooms()
+  await bookingStore.fetchSchedules()
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
+  const start = format(weekStart, 'yyyy-MM-dd')
+  const end = format(addDays(weekStart, 60), 'yyyy-MM-dd')
+  await Promise.all(
+    bookingStore.rooms.map(r => bookingStore.fetchRoomScheduleSlots(r.id, start, end))
+  )
+})
+
+const currentDate = computed(() => bookingStore.currentScheduleDate)
+
+const weekDays = computed(() => {
+  const start = startOfWeek(currentDate.value, { weekStartsOn: 1 })
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(start, i)
+    const dateStr = format(date, 'yyyy-MM-dd')
+    return {
+      date,
+      dateStr,
+      dayName: format(date, 'EEE'),
+      dateShort: format(date, 'MMM d'),
+      isToday: checkIsToday(date)
+    }
+  })
+})
+
+const formattedDate = computed(() => {
+  return format(currentDate.value, 'EEEE, MMMM d, yyyy')
+})
+
+const isToday = computed(() => {
+  return checkIsToday(currentDate.value)
+})
+
+function navigateDay(direction: 'prev' | 'next') {
+  bookingStore.navigateScheduleDay(direction)
+}
+
+function goToToday() {
+  bookingStore.setScheduleDate(new Date())
+}
+
+function getSlot(roomId: string, time: string): ScheduleSlot {
+  const dateStr = format(currentDate.value, 'yyyy-MM-dd')
+  const slot = bookingStore.getScheduleSlot(roomId, dateStr, time)
+  
+  if (slot) {
+    slot.isOwn = currentUser.value ? slot.bookedBy === currentUser.value.name : false
+    return slot
+  }
+  
+  const slotDateTime = new Date(`${dateStr}T${time}`)
+  const now = new Date()
+  const isPast = slotDateTime < now
+  
+  return {
+    id: `new-${roomId}-${dateStr}-${time}`,
+    roomId,
+    date: dateStr,
+    time,
+    status: isPast ? 'past' : 'free',
+  }
+}
+
+function getSlotForDay(roomId: string, dateStr: string, time: string): ScheduleSlot {
+  const slot = bookingStore.getScheduleSlot(roomId, dateStr, time)
+  
+  if (slot) {
+    slot.isOwn = currentUser.value ? slot.bookedBy === currentUser.value.name : false
+    return slot
+  }
+  
+  const slotDateTime = new Date(`${dateStr}T${time}`)
+  const now = new Date()
+  const isPast = slotDateTime < now
+  
+  return {
+    id: `new-${roomId}-${dateStr}-${time}`,
+    roomId,
+    date: dateStr,
+    time,
+    status: isPast ? 'past' : 'free',
+  }
+}
+
+function getWeekSlot(roomId: string, dateStr: string): { bookedCount: number; totalSlots: number; hasOwnBooking: boolean } {
+  const slots = bookingStore.scheduleSlots.filter(s => 
+    s.roomId === roomId && s.date === dateStr
+  )
+  
+  const bookedCount = slots.filter(s => s.status === 'booked').length
+  const totalSlots = slots.length
+  const userName = currentUser.value?.name
+  const hasOwnBooking = userName ? slots.some(s => s.bookedBy === userName) : false
+  
+  return { bookedCount, totalSlots, hasOwnBooking }
+}
+
+function handleWeekSlotClick(data: { roomId: string; dateStr: string }) {
+  bookingStore.setScheduleDate(new Date(data.dateStr))
+}
+
+function handleSlotClick(slot: ScheduleSlot) {
+  selectedSlot.value = slot
+  const room = bookingStore.getRoomById(slot.roomId)
+  selectedRoomName.value = room?.name || ''
+  
+  if (slot.status === 'booked' && (slot.isOwn || authStore.isAdmin)) {
+    showCancelModal.value = true
+  } else if (slot.status === 'free') {
+    showModal.value = true
+  }
+}
+
+function resolveUserByName(name: string): { name: string; email: string } | undefined {
+  return allUsers.value.find(u => u.name === name)
+}
+
+async function handleConfirm(description: string, bookedBy: string) {
+  if (!selectedSlot.value) return
+
+  const bookedByUser = resolveUserByName(bookedBy) ?? { name: bookedBy, email: '' }
+  await bookingStore.bookScheduleSlot(
+    selectedSlot.value.roomId,
+    selectedSlot.value.date,
+    selectedSlot.value.time,
+    description,
+    bookedByUser
+  )
+
+  showModal.value = false
+  selectedSlot.value = null
+}
+
+function handleCancel() {
+  showModal.value = false
+  selectedSlot.value = null
+}
+
+function getEndTime(time: string): string {
+  if (!time) return ''
+  const hour = parseInt(time.split(':')[0]) + 1
+  return `${hour.toString().padStart(2, '0')}:00`
+}
+
+async function handleCancelBooking() {
+  if (!selectedSlot.value || !selectedSlot.value.bookingRef) return
+
+  await bookingStore.cancelScheduleBooking(selectedSlot.value.bookingRef)
+
+  showCancelModal.value = false
+  selectedSlot.value = null
+}
+</script>
