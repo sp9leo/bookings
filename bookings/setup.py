@@ -8,7 +8,7 @@ def ensure_bookings_manager_role():
         frappe.get_doc(
             {
                 "doctype": "Role",
-                "name": ROLE_BOOKINGS_MANAGER,
+                "role_name": ROLE_BOOKINGS_MANAGER,
                 "desk_access": 0,
                 "disabled": 0,
             }
