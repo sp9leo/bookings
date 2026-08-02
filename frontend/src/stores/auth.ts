@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { apiGet, apiPost, getCsrfToken } from '@/composables/api'
+import { apiGet, getCsrfToken } from '@/composables/api'
 import { sessionUser, getSessionUserFromCookie } from '@/data/session'
 
 export interface CurrentUser {
@@ -106,47 +106,8 @@ export const useAuthStore = defineStore('auth', {
         name: u.full_name || u.name,
         email: u.email || u.name,
         color: colorForName(u.full_name || u.name),
-        role: u.is_admin ? 'admin' : 'user',
+        role: 'admin',
       }))
-    },
-
-    async addUser(user?: Partial<CurrentUser> & { password?: string }): Promise<CurrentUser | null> {
-      if (!user?.email) return null
-      const res = await apiPost<any>('/api/method/bookings.api.create_user', {
-        email: user.email,
-        full_name: user.name,
-        password: user.password || null,
-        role: user.role || 'user',
-      })
-      if (!res?.success) return null
-      await this.fetchUsers()
-      return {
-        id: user.email,
-        name: user.name || user.email,
-        email: user.email,
-        color: colorForName(user.name || user.email),
-        role: user.role || 'user',
-      }
-    },
-
-    async updateUser(id?: string, updates?: Partial<CurrentUser>): Promise<boolean> {
-      if (!id) return false
-      const res = await apiPost<any>('/api/method/bookings.api.update_user', {
-        name: id,
-        full_name: updates?.name ?? null,
-        role: updates?.role ?? null,
-      })
-      if (!res?.success) return false
-      await this.fetchUsers()
-      return true
-    },
-
-    async removeUser(id?: string): Promise<boolean> {
-      if (!id) return false
-      const res = await apiPost<any>('/api/method/bookings.api.delete_user', { name: id })
-      if (!res?.success) return false
-      this.users = this.users.filter((u) => u.id !== id)
-      return true
     },
   },
 })

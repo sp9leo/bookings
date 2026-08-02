@@ -380,7 +380,7 @@ def delete_group(name):
 
 @frappe.whitelist()
 def get_users():
-    """List enabled Frappe users with their roles."""
+    """List enabled users holding the Bookings Manager role."""
     _require_admin()
     users = frappe.get_all(
         "User",
@@ -391,12 +391,14 @@ def get_users():
     result = []
     for u in users:
         roles = frappe.get_roles(u.name)
+        if "Bookings Manager" not in roles:
+            continue
         result.append({
             "name": u.name,
             "email": u.email or u.name,
             "full_name": u.full_name or u.name,
             "roles": roles,
-            "is_admin": "System Manager" in roles or "Bookings Manager" in roles,
+            "is_admin": True,
         })
     return result
 
