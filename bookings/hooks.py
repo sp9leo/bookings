@@ -8,3 +8,5 @@ app_license = "MIT"
 use_json_request_body = True
 
 export_python_type_annotations = True
+
+after_migrate = "bookings.setup.after_migrate"
