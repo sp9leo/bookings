@@ -76,6 +76,13 @@ def cancel_reservation(access_token):
 
 
 @frappe.whitelist()
+def get_schedules(item_type=None):
+    """Get all schedules, optionally filtered by item type."""
+    from bookings.bookings.doctype.schedule.schedule import get_schedules
+    return get_schedules(item_type=item_type)
+
+
+@frappe.whitelist()
 def get_schedule_for_room(item, start_date, end_date):
     """Get schedule slots for a room within a date range."""
     from bookings.bookings.doctype.schedule_slot.schedule_slot import get_schedule_slots
