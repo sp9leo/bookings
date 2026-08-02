@@ -7,16 +7,16 @@
     <!-- Teacher selector -->
     <div class="mb-6">
       <div v-if="isAdmin">
+        <div v-if="selectedPerson" class="text-sm text-gray-600 mb-2">
+          Managing slots for <strong>{{ selectedPerson.name }}</strong>
+        </div>
         <select v-model="selectedItemId" class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 w-64">
           <option value="">— Select a person —</option>
-          <option v-for="item in myItems" :key="item.id" :value="item.id">{{ item.name }} ({{ item.subtitle }})</option>
+          <option v-for="item in otherUsersItems" :key="item.id" :value="item.id">{{ item.name }} ({{ item.subtitle }})</option>
         </select>
       </div>
       <template v-else>
-        <div v-if="myItems.length === 1" class="text-sm text-gray-600">
-          Managing slots for <strong>{{ myItems[0].name }}</strong>
-        </div>
-        <select v-else v-model="selectedItemId" class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 w-64">
+        <select v-model="selectedItemId" class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 w-64">
           <option value="">— Select your item —</option>
           <option v-for="item in myItems" :key="item.id" :value="item.id">{{ item.name }} ({{ item.subtitle }})</option>
         </select>
@@ -179,6 +179,16 @@ const myItems = computed(() => {
   if (isAdmin.value) return bookingStore.items
   return bookingStore.items.filter(i => i.userId === authStore.currentUser?.id)
 })
+
+const otherUsersItems = computed(() => {
+  if (!isAdmin.value) return myItems.value
+  const currentUserId = authStore.currentUser?.id
+  return myItems.value.filter(i => i.userId !== currentUserId)
+})
+
+const selectedPerson = computed(() =>
+  myItems.value.find(i => i.id === selectedItemId.value)
+)
 
 const selectedItemId = ref('')
 const selectedDateStr = ref<string | null>(null)
