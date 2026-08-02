@@ -25,14 +25,14 @@
               </div>
             </td>
             <td class="px-4 py-3">
-              <span class="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">
-                Bookings Manager
+              <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'">
+                {{ user.role === 'admin' ? 'Bookings Manager' : 'Bookings User' }}
               </span>
             </td>
           </tr>
         </tbody>
       </table>
-      <div v-if="authStore.users.length === 0" class="p-6 text-center text-sm text-gray-400">No Bookings Manager users found.</div>
+      <div v-if="authStore.users.length === 0" class="p-6 text-center text-sm text-gray-400">No users found.</div>
     </div>
   </div>
 </template>

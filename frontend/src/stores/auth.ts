@@ -106,7 +106,7 @@ export const useAuthStore = defineStore('auth', {
         name: u.full_name || u.name,
         email: u.email || u.name,
         color: colorForName(u.full_name || u.name),
-        role: 'admin',
+        role: u.is_admin ? 'admin' : 'user',
       }))
     },
   },
