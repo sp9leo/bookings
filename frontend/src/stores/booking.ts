@@ -530,6 +530,13 @@ export const useBookingStore = defineStore('booking', {
       this.tutorReservations = (data || []).map((r) => mapReservation(r, itemNames))
     },
 
+    async fetchItemReservations(itemId: string) {
+      if (this.items.length === 0) await this.fetchItems()
+      const itemNames = new Map(this.items.map((i) => [i.id, i.name]))
+      const data = (await apiGet<any[]>(`${API}.get_item_reservations`, { item: itemId })) as any[] | null
+      this.reservations = (data || []).map((r) => mapReservation(r, itemNames))
+    },
+
     async fetchMyRoomBookings() {
       const roomNames = new Map(this.rooms.map((r) => [r.id, r.name]))
       const data = (await apiGet(`${API}.get_my_room_bookings`)) as any[] | null
@@ -600,8 +607,9 @@ export const useBookingStore = defineStore('booking', {
     },
 
     async lookupReservation(email: string, ref: string): Promise<Reservation | null> {
+      if (this.items.length === 0) await this.fetchItems()
       const res = await apiGet<any>(`${API}.lookup_reservation`, { email, booking_ref: ref })
-      if (!res) return null
+      if (!res || !res.name) return null
       const itemNames = new Map(this.items.map((i) => [i.id, i.name]))
       const mapped = mapReservation(res, itemNames)
       const idx = this.reservations.findIndex((r) => r.id === mapped.id)

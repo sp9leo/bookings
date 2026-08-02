@@ -130,7 +130,7 @@ def get_tutor_reservations(user):
             "status": ["!=", "Cancelled"]
         },
         fields=["name", "booking_ref", "customer_name", "customer_email",
-                "from_time", "to_time", "status", "reservation_item"],
+                "from_time", "to_time", "status", "reservation_item", "slot"],
         order_by="from_time asc"
     )
     return reservations

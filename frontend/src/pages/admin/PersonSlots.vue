@@ -199,7 +199,10 @@ if (!isAdmin.value && myItems.value.length > 0) {
 
 watch(selectedItemId, () => {
   autoSelectDate()
-  if (selectedItemId.value) bookingStore.fetchSlots(selectedItemId.value)
+  if (selectedItemId.value) {
+    bookingStore.fetchSlots(selectedItemId.value)
+    bookingStore.fetchItemReservations(selectedItemId.value)
+  }
 })
 
 onMounted(async () => {
@@ -213,6 +216,7 @@ onMounted(async () => {
   }
   if (selectedItemId.value) {
     await bookingStore.fetchSlots(selectedItemId.value)
+    await bookingStore.fetchItemReservations(selectedItemId.value)
     autoSelectDate()
   }
 })

@@ -27,6 +27,11 @@ function extractErrorMessage(json: any, status: number): string {
   return `Request failed (${status})`
 }
 
+export function unwrapMessage(json: any): any {
+  if (json && typeof json === 'object' && 'message' in json) return json.message
+  return json
+}
+
 export function useFetch<T = any>(
   url: string,
   params?: Record<string, any>,
@@ -48,7 +53,7 @@ export function useFetch<T = any>(
       const qs = query.toString()
       const res = await fetch(url + (qs ? '?' + qs : ''))
       const json = await res.json()
-      const msg = json.message ?? json
+      const msg = unwrapMessage(json)
       data.value = msg as T
       options?.onSuccess?.(msg as T)
       return msg as T
@@ -76,7 +81,7 @@ export async function apiGet<T = any>(url: string, params?: Record<string, any>)
     const qs = query.toString()
     const res = await fetch(url + (qs ? '?' + qs : ''))
     const json = await res.json()
-    return (json.message ?? json) as T
+    return unwrapMessage(json) as T
   } catch {
     return null
   }
@@ -105,5 +110,5 @@ export async function apiPost<T = any>(url: string, body: Record<string, any>): 
   }
 
   const json = await res.json().catch(() => null)
-  return (json?.message ?? json) as T
+  return unwrapMessage(json) as T
 }

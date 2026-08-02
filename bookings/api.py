@@ -133,6 +133,19 @@ def get_my_tutor_bookings():
 
 
 @frappe.whitelist()
+def get_item_reservations(item):
+    """Get all reservations for an item (admin or item owner)."""
+    _require_can_manage(item)
+    return frappe.get_all(
+        "Reservation",
+        filters={"reservation_item": item},
+        fields=["name", "booking_ref", "customer_name", "customer_email",
+                "from_time", "to_time", "status", "reservation_item", "slot"],
+        order_by="from_time desc"
+    )
+
+
+@frappe.whitelist()
 def get_current_user():
     """Get the current logged-in user info (or Guest)."""
     user = frappe.session.user
