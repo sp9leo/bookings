@@ -166,8 +166,9 @@ def update_booking_time(booking_ref, new_start_time, new_end_time):
     slot_doc.end_time = new_end_time
     slot_doc.save(ignore_permissions=True)
 
-    booking.from_time = frappe.utils.combine_datetime(booking.booking_date, new_start_time)
-    booking.to_time = frappe.utils.combine_datetime(booking.booking_date, new_end_time)
+    from bookings.bookings.doctype.reservation.reservation import _combine_datetime
+    booking.from_time = _combine_datetime(booking.booking_date, new_start_time)
+    booking.to_time = _combine_datetime(booking.booking_date, new_end_time)
     booking.save(ignore_permissions=True)
 
     return {

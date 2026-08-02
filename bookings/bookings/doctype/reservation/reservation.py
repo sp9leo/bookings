@@ -18,6 +18,19 @@ def generate_access_token():
     return secrets.token_urlsafe(32)
 
 
+def _combine_datetime(date_val, time_val):
+    """Combine a date with a time/datetime value into a 'YYYY-MM-DD HH:MM:SS' string.
+
+    frappe.utils.combine_datetime was removed from the framework, so this
+    replaces it for Available Slot values (datetime strings/objects).
+    """
+    date_str = str(date_val).split(" ")[0].strip()
+    time_str = str(time_val).split(" ")[-1].strip()
+    if time_str.count(":") == 1:
+        time_str = f"{time_str}:00"
+    return f"{date_str} {time_str}"
+
+
 @frappe.whitelist()
 def create_reservation(slot, customer_name, customer_email, notes=None):
     """Create a new reservation from an available slot."""
@@ -32,8 +45,8 @@ def create_reservation(slot, customer_name, customer_email, notes=None):
         "slot": slot,
         "customer_name": customer_name,
         "customer_email": customer_email,
-        "from_time": frappe.utils.combine_datetime(slot_doc.slot_date, slot_doc.start_time),
-        "to_time": frappe.utils.combine_datetime(slot_doc.slot_date, slot_doc.end_time),
+        "from_time": _combine_datetime(slot_doc.slot_date, slot_doc.start_time),
+        "to_time": _combine_datetime(slot_doc.slot_date, slot_doc.end_time),
         "notes": notes,
         "status": "Confirmed",
         "booking_ref": generate_booking_ref(),
