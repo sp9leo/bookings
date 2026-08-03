@@ -106,9 +106,8 @@
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 1,
- "is_submittable": 1,
- "links": [],
+  "index_web_pages_for_search": 1,
+  "links": [],
  "modified": "2026-03-22 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Bookings",
