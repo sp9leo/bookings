@@ -69,7 +69,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { format, startOfWeek, addDays, addWeeks, isToday as checkIsToday } from 'date-fns'
-import { useAuthStore, MOCK_USERS } from '@/stores/auth'
+import { useAuthStore } from '@/stores/auth'
 import { useBookingStore } from '@/stores/booking'
 
 interface ScheduleSlot {
@@ -102,11 +102,21 @@ const timeSlots = computed(() => bookingStore.timeSlots)
 
 const currentWeekStart = ref(startOfWeek(new Date(), { weekStartsOn: 1 }))
 
-function prevWeek() {
-  currentWeekStart.value = addWeeks(currentWeekStart.value, -1)
+async function refreshWeek() {
+  const start = format(currentWeekStart.value, 'yyyy-MM-dd')
+  const end = format(addDays(currentWeekStart.value, 6), 'yyyy-MM-dd')
+  await Promise.all(
+    bookingStore.rooms.map(r => bookingStore.fetchRoomScheduleSlots(r.id, start, end))
+  )
 }
-function nextWeek() {
+
+async function prevWeek() {
+  currentWeekStart.value = addWeeks(currentWeekStart.value, -1)
+  await refreshWeek()
+}
+async function nextWeek() {
   currentWeekStart.value = addWeeks(currentWeekStart.value, 1)
+  await refreshWeek()
 }
 
 const weekDays = computed(() => {
@@ -152,7 +162,7 @@ function cellClasses(slot: ScheduleSlot | undefined): Record<string, boolean> {
 
 const userColorMap = computed(() => {
   const map: Record<string, string> = {}
-  for (const u of MOCK_USERS) {
+  for (const u of authStore.users) {
     map[u.name] = u.color
   }
   return map

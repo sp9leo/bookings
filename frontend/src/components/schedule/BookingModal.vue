@@ -132,6 +132,7 @@
               <span v-else>Confirm</span>
             </button>
           </div>
+          <p v-if="error" class="mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{{ error }}</p>
         </div>
       </div>
     </Transition>
@@ -166,10 +167,12 @@ const props = withDefaults(defineProps<{
   showRecurrence?: boolean
   isAdmin?: boolean
   users?: { id: string; name: string; email: string }[]
+  error?: string
 }>(), {
   showRecurrence: true,
   isAdmin: false,
   users: () => [],
+  error: '',
 })
 
 const emit = defineEmits<{

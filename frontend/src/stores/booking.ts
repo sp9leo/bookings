@@ -529,7 +529,11 @@ export const useBookingStore = defineStore('booking', {
       const data = (await apiGet(`${API}.get_schedule_for_room`, params)) as any[] | null
       if (!Array.isArray(data)) return
       const mapped = (data || []).map(mapScheduleSlot)
-      this.scheduleSlots = [...this.scheduleSlots.filter((s) => s.roomId !== roomId), ...mapped]
+      const newIds = new Set(mapped.map((s) => s.id))
+      this.scheduleSlots = [
+        ...this.scheduleSlots.filter((s) => s.roomId !== roomId || !newIds.has(s.id)),
+        ...mapped,
+      ]
     },
 
     async fetchMySessionReservations() {
@@ -655,7 +659,13 @@ export const useBookingStore = defineStore('booking', {
       const existing = this.getScheduleForRoom(roomId)
       if (existing) return existing
       const s = await apiGet<any>(`${API}.get_or_create_room_schedule`, { room: roomId })
-      if (!s || typeof s.name !== 'string') return null
+      if (!s || typeof s.name !== 'string') {
+        this.error = typeof s === 'string' && s
+          ? `Could not set up a schedule for this room: ${s}`
+          : 'Could not set up a schedule for this room.'
+        return null
+      }
+      this.error = ''
       const mapped: Schedule = {
         name: s.name,
         applies_to: s.applies_to,
@@ -670,7 +680,7 @@ export const useBookingStore = defineStore('booking', {
       let schedule = this.getScheduleForRoom(roomId)
       if (!schedule) schedule = await this.ensureRoomSchedule(roomId)
       if (!schedule) {
-        this.error = 'No schedule is set up for this room.'
+        if (!this.error) this.error = 'No schedule is set up for this room.'
         return null
       }
       const period = this.findPeriodForTime(schedule, time)
@@ -741,7 +751,7 @@ export const useBookingStore = defineStore('booking', {
       let schedule = this.getScheduleForRoom(roomId)
       if (!schedule) schedule = await this.ensureRoomSchedule(roomId)
       if (!schedule) {
-        this.error = 'No schedule is set up for this room.'
+        if (!this.error) this.error = 'No schedule is set up for this room.'
         return null
       }
       const period = this.findPeriodForTime(schedule, time)

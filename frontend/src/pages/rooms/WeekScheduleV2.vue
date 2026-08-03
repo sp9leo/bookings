@@ -31,6 +31,7 @@
       :user-name="currentUser?.name || ''"
       :is-admin="authStore.isAdmin"
       :users="allUsers"
+      :error="modalError"
       @confirm="handleConfirm"
       @cancel="handleCancel"
     />
@@ -210,7 +211,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { format, startOfWeek, addDays } from 'date-fns'
-import { useAuthStore, MOCK_USERS } from '@/stores/auth'
+import { useAuthStore } from '@/stores/auth'
 import { useBookingStore } from '@/stores/booking'
 import WeekTable from '@/components/schedule/WeekTable.vue'
 import BookingModal from '@/components/schedule/BookingModal.vue'
@@ -238,10 +239,11 @@ interface AvailableSlot {
 const authStore = useAuthStore()
 const bookingStore = useBookingStore()
 const currentUser = computed(() => authStore.currentUser)
-const allUsers = computed(() => MOCK_USERS)
+const allUsers = computed(() => authStore.users)
 
 const showModal = ref(false)
 const showEditModal = ref(false)
+const modalError = ref('')
 const selectedSlot = ref<ScheduleSlot | null>(null)
 const selectedRoomName = ref('')
 const editDescription = ref('')
@@ -256,6 +258,7 @@ const editRecurrenceUntilDate = ref('')
 onMounted(async () => {
   if (bookingStore.rooms.length === 0) await bookingStore.fetchRooms()
   await bookingStore.fetchSchedules()
+  authStore.fetchUsers()
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
   const start = format(weekStart, 'yyyy-MM-dd')
   const end = format(addDays(weekStart, 60), 'yyyy-MM-dd')
@@ -284,6 +287,7 @@ function setDefaultUntil(): string {
 
 function handleSlotClick(slot: ScheduleSlot) {
   selectedSlot.value = slot
+  modalError.value = ''
   const room = bookingStore.getRoomById(slot.roomId)
   selectedRoomName.value = room?.name || ''
 
@@ -344,24 +348,29 @@ function resolveUserByName(name: string): { name: string; email: string } | unde
 async function handleConfirm(description: string, bookedBy: string, recurrence?: { frequency: 'daily' | 'weekly' | 'monthly'; interval: number; untilDate: string }) {
   if (!selectedSlot.value) return
   const bookedByUser = resolveUserByName(bookedBy) ?? { name: bookedBy, email: '' }
-  if (recurrence) {
-    await bookingStore.bookRecurringScheduleSlot(
-      selectedSlot.value.roomId,
-      selectedSlot.value.date,
-      selectedSlot.value.time,
-      description,
-      recurrence,
-      bookedByUser
-    )
-  } else {
-    await bookingStore.bookScheduleSlot(
-      selectedSlot.value.roomId,
-      selectedSlot.value.date,
-      selectedSlot.value.time,
-      description,
-      bookedByUser
-    )
+  const result = recurrence
+    ? await bookingStore.bookRecurringScheduleSlot(
+        selectedSlot.value.roomId,
+        selectedSlot.value.date,
+        selectedSlot.value.time,
+        description,
+        recurrence,
+        bookedByUser
+      )
+    : await bookingStore.bookScheduleSlot(
+        selectedSlot.value.roomId,
+        selectedSlot.value.date,
+        selectedSlot.value.time,
+        description,
+        bookedByUser
+      )
+
+  if (!result) {
+    modalError.value = bookingStore.error || 'Booking failed. Please try again.'
+    return
   }
+
+  modalError.value = ''
   showModal.value = false
   selectedSlot.value = null
 }
@@ -369,6 +378,7 @@ async function handleConfirm(description: string, bookedBy: string, recurrence?:
 function handleCancel() {
   showModal.value = false
   selectedSlot.value = null
+  modalError.value = ''
 }
 
 async function handleSave() {

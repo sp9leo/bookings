@@ -111,6 +111,7 @@
       :show-recurrence="false"
       :is-admin="authStore.isAdmin"
       :users="allUsers"
+      :error="modalError"
       @confirm="handleConfirm"
       @cancel="handleCancel"
     />
@@ -172,7 +173,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { format, isToday as checkIsToday, addDays, startOfWeek } from 'date-fns'
-import { useAuthStore, MOCK_USERS } from '@/stores/auth'
+import { useAuthStore } from '@/stores/auth'
 import { useBookingStore } from '@/stores/booking'
 import TimeSlotCell from '@/components/schedule/TimeSlotCell.vue'
 import BookingModal from '@/components/schedule/BookingModal.vue'
@@ -194,16 +195,18 @@ const authStore = useAuthStore()
 const rooms = computed(() => bookingStore.rooms)
 const timeSlots = computed(() => bookingStore.timeSlots)
 const currentUser = computed(() => authStore.currentUser)
-const allUsers = computed(() => MOCK_USERS)
+const allUsers = computed(() => authStore.users)
 
 const selectedSlot = ref<ScheduleSlot | null>(null)
 const selectedRoomName = ref('')
 const showModal = ref(false)
 const showCancelModal = ref(false)
+const modalError = ref('')
 
 onMounted(async () => {
   if (bookingStore.rooms.length === 0) await bookingStore.fetchRooms()
   await bookingStore.fetchSchedules()
+  authStore.fetchUsers()
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
   const start = format(weekStart, 'yyyy-MM-dd')
   const end = format(addDays(weekStart, 60), 'yyyy-MM-dd')
@@ -222,12 +225,20 @@ const isToday = computed(() => {
   return checkIsToday(currentDate.value)
 })
 
-function navigateDay(direction: 'prev' | 'next') {
+async function navigateDay(direction: 'prev' | 'next') {
   bookingStore.navigateScheduleDay(direction)
+  const dateStr = format(bookingStore.currentScheduleDate, 'yyyy-MM-dd')
+  await Promise.all(
+    bookingStore.rooms.map(r => bookingStore.fetchRoomScheduleSlots(r.id, dateStr, dateStr))
+  )
 }
 
-function goToToday() {
+async function goToToday() {
   bookingStore.setScheduleDate(new Date())
+  const dateStr = format(bookingStore.currentScheduleDate, 'yyyy-MM-dd')
+  await Promise.all(
+    bookingStore.rooms.map(r => bookingStore.fetchRoomScheduleSlots(r.id, dateStr, dateStr))
+  )
 }
 
 function getSlot(roomId: string, time: string): ScheduleSlot {
@@ -254,6 +265,7 @@ function getSlot(roomId: string, time: string): ScheduleSlot {
 
 function handleSlotClick(slot: ScheduleSlot) {
   selectedSlot.value = slot
+  modalError.value = ''
   const room = bookingStore.getRoomById(slot.roomId)
   selectedRoomName.value = room?.name || ''
   
@@ -272,7 +284,7 @@ async function handleConfirm(description: string, bookedBy: string) {
   if (!selectedSlot.value) return
 
   const bookedByUser = resolveUserByName(bookedBy) ?? { name: bookedBy, email: '' }
-  await bookingStore.bookScheduleSlot(
+  const result = await bookingStore.bookScheduleSlot(
     selectedSlot.value.roomId,
     selectedSlot.value.date,
     selectedSlot.value.time,
@@ -280,6 +292,12 @@ async function handleConfirm(description: string, bookedBy: string) {
     bookedByUser
   )
 
+  if (!result) {
+    modalError.value = bookingStore.error || 'Booking failed. Please try again.'
+    return
+  }
+
+  modalError.value = ''
   showModal.value = false
   selectedSlot.value = null
 }
@@ -287,6 +305,7 @@ async function handleConfirm(description: string, bookedBy: string) {
 function handleCancel() {
   showModal.value = false
   selectedSlot.value = null
+  modalError.value = ''
 }
 
 function getEndTime(time: string): string {
