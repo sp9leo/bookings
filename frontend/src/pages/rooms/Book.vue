@@ -140,6 +140,7 @@
                 <span v-if="submitting">Booking...</span>
                 <span v-else>Book Room</span>
               </button>
+              <p v-if="errorMessage" class="mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{{ errorMessage }}</p>
             </form>
           </div>
         </div>
@@ -167,6 +168,7 @@ const room = computed(() => bookingStore.getRoomById(roomId))
 const selectedDate = ref<Date | null>(null)
 const selectedRoomSlot = ref<any>(null)
 const submitting = ref(false)
+const errorMessage = ref('')
 const form = reactive({
   name: '',
   email: '',
@@ -209,11 +211,13 @@ onMounted(async () => {
 
 function onDateChange() {
   selectedRoomSlot.value = null
+  errorMessage.value = ''
 }
 
 function selectSlot(slot: any) {
   if (slot.isBooked) return
   selectedRoomSlot.value = slot
+  errorMessage.value = ''
   bookingStore.setSelectedRoomSlot(slot)
   bookingStore.setSelectedDate(selectedDate.value)
   bookingStore.setSelectedRoom(room.value!)
@@ -227,12 +231,18 @@ async function submitBooking() {
   if (!isFormValid.value || !selectedRoomSlot.value) return
 
   submitting.value = true
+  errorMessage.value = ''
 
-  const booking = await bookingStore.createRoomBooking(selectedRoomSlot.value, form.name, form.email)
+  const booking = await bookingStore.createRoomBooking(selectedRoomSlot.value, form.name, form.email, form.title)
 
   submitting.value = false
 
-  if (!booking) return
+  if (!booking) {
+    errorMessage.value = bookingStore.error || 'Booking failed. Please try again.'
+    return
+  }
+
+  errorMessage.value = ''
 
   router.push({
     path: '/rooms/confirm',

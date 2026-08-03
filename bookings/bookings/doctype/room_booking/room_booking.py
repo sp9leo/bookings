@@ -39,6 +39,7 @@ def create_room_booking(schedule_slot, notes=None):
     
     slot_doc.status = "Booked"
     slot_doc.booking_ref = booking.booking_ref
+    slot_doc.booked_by = user
     slot_doc.save(ignore_permissions=True)
     
     return {

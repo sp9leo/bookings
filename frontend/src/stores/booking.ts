@@ -291,7 +291,14 @@ export const useBookingStore = defineStore('booking', {
 
     getRoomSlotsForDate: (state) => (roomId: string, date: string | null) => {
       if (!date) return []
-      return state.timeSlots.map((time) => {
+      const schedule = state.schedules.find(
+        (s) => s.reservation_item === roomId && (s.applies_to === 'Room' || !s.applies_to)
+      )
+      const periodTimes = (schedule?.periods || [])
+        .map((p) => timeOf(p.start_time))
+        .filter(Boolean)
+      const times = periodTimes.length ? periodTimes : state.timeSlots
+      return times.map((time) => {
         const scheduleSlot = state.scheduleSlots.find(
           (s) => s.roomId === roomId && s.date === date && s.time === time
         )
@@ -520,6 +527,7 @@ export const useBookingStore = defineStore('booking', {
       if (startDate) params.start_date = startDate
       if (endDate) params.end_date = endDate
       const data = (await apiGet(`${API}.get_schedule_for_room`, params)) as any[] | null
+      if (!Array.isArray(data)) return
       const mapped = (data || []).map(mapScheduleSlot)
       this.scheduleSlots = [...this.scheduleSlots.filter((s) => s.roomId !== roomId), ...mapped]
     },
@@ -555,6 +563,7 @@ export const useBookingStore = defineStore('booking', {
     async fetchMyRoomBookings() {
       const roomNames = new Map(this.rooms.map((r) => [r.id, r.name]))
       const data = (await apiGet(`${API}.get_my_room_bookings`)) as any[] | null
+      if (!Array.isArray(data)) return
       this.roomBookings = (data || []).map((b) => mapRoomBooking(b, roomNames))
     },
 
@@ -644,16 +653,25 @@ export const useBookingStore = defineStore('booking', {
 
     async bookRoomBooking(roomId: string, date: string, time: string, description: string): Promise<RoomBooking | null> {
       const schedule = this.getScheduleForRoom(roomId)
-      if (!schedule) return null
+      if (!schedule) {
+        this.error = 'No schedule is set up for this room.'
+        return null
+      }
       const period = this.findPeriodForTime(schedule, time)
-      if (!period) return null
+      if (!period) {
+        this.error = `Time ${time} is not in this room's schedule.`
+        return null
+      }
 
       const slotDoc = await apiGet<any>(`${API}.get_or_create_slot`, {
         schedule: schedule.name,
         slot_date: date,
         period_number: period.period_number,
       })
-      if (!slotDoc) return null
+      if (!slotDoc || typeof slotDoc.name !== 'string') {
+        this.error = 'Could not create a slot for the selected time.'
+        return null
+      }
 
       const res = await safePost<any>(`${API}.book_room`, {
         schedule_slot: slotDoc.name,
@@ -661,7 +679,8 @@ export const useBookingStore = defineStore('booking', {
       })
       if (!res) return null
 
-      await this.fetchRoomScheduleSlots(roomId)
+      this.error = ''
+      await this.fetchRoomScheduleSlots(roomId, date, date)
       await this.fetchMyRoomBookings()
 
       const room = this.getRoomById(roomId)
@@ -681,8 +700,8 @@ export const useBookingStore = defineStore('booking', {
       }
     },
 
-    async createRoomBooking(slot: RoomSlot, _userName: string, _userEmail: string): Promise<RoomBooking | null> {
-      return this.bookRoomBooking(slot.roomId, slot.date, slot.from, '')
+    async createRoomBooking(slot: RoomSlot, _userName: string, _userEmail: string, description = ''): Promise<RoomBooking | null> {
+      return this.bookRoomBooking(slot.roomId, slot.date, slot.from, description)
     },
 
     async bookScheduleSlot(
@@ -704,9 +723,15 @@ export const useBookingStore = defineStore('booking', {
       _bookedBy?: { name: string; email: string }
     ): Promise<string | null> {
       const schedule = this.getScheduleForRoom(roomId)
-      if (!schedule) return null
+      if (!schedule) {
+        this.error = 'No schedule is set up for this room.'
+        return null
+      }
       const period = this.findPeriodForTime(schedule, time)
-      if (!period) return null
+      if (!period) {
+        this.error = `Time ${time} is not in this room's schedule.`
+        return null
+      }
 
       const dates: string[] = []
       let current = parseISO(date)
@@ -736,7 +761,8 @@ export const useBookingStore = defineStore('booking', {
       })
       if (!res?.success) return null
 
-      await this.fetchRoomScheduleSlots(roomId)
+      this.error = ''
+      await this.fetchRoomScheduleSlots(roomId, date, date)
       await this.fetchMyRoomBookings()
 
       const created = res.created || []

@@ -82,7 +82,7 @@ def get_schedules(item_type=None):
 
 
 @frappe.whitelist()
-def get_schedule_for_room(item, start_date, end_date):
+def get_schedule_for_room(item, start_date=None, end_date=None):
     """Get schedule slots for a room within a date range."""
     from bookings.bookings.doctype.schedule_slot.schedule_slot import get_schedule_slots
     return get_schedule_slots(item=item, start_date=start_date, end_date=end_date)
