@@ -331,22 +331,28 @@ function handleSlotClick(slot: ScheduleSlot) {
 
 const availableSlots = computed((): AvailableSlot[] => {
   if (!selectedSlot.value) return []
-  return bookingStore.timeSlots.map(time => {
-    const hour = parseInt(time.split(':')[0])
-    const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`
-    const existingSlot = bookingStore.getScheduleSlot(
-      selectedSlot.value!.roomId,
-      selectedSlot.value!.date,
-      time
-    )
-    const isCurrentBooking = existingSlot?.bookingRef === selectedSlot.value!.bookingRef
-    return {
-      time,
-      endTime,
-      isBooked: existingSlot?.status === 'booked' && !isCurrentBooking,
-      bookedBy: existingSlot?.bookedBy
-    }
-  })
+  const now = new Date()
+  return bookingStore.timeSlots
+    .map(time => {
+      const hour = parseInt(time.split(':')[0])
+      const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`
+      const existingSlot = bookingStore.getScheduleSlot(
+        selectedSlot.value!.roomId,
+        selectedSlot.value!.date,
+        time
+      )
+      const isCurrentBooking = existingSlot?.bookingRef === selectedSlot.value!.bookingRef
+      return {
+        time,
+        endTime,
+        isBooked: existingSlot?.status === 'booked' && !isCurrentBooking,
+        bookedBy: existingSlot?.bookedBy
+      }
+    })
+    .filter(slot => {
+      const slotDateTime = new Date(`${selectedSlot.value!.date}T${slot.time}`)
+      return slotDateTime > now
+    })
 })
 
 function resolveUserByName(name: string): { name: string; email: string } | undefined {
@@ -426,6 +432,11 @@ async function handleSave() {
 async function handleDeleteBooking() {
   if (!selectedSlot.value || !selectedSlot.value.bookingRef) return
   await bookingStore.cancelScheduleBooking(selectedSlot.value.bookingRef, editScope.value)
+  await bookingStore.refreshRoomBookings()
+  const dateStr = format(selectedSlot.value.date, 'yyyy-MM-dd')
+  await Promise.all(
+    bookingStore.rooms.map(r => bookingStore.fetchRoomAvailableSlots(r.id, dateStr, dateStr))
+  )
   showEditModal.value = false
   selectedSlot.value = null
 }

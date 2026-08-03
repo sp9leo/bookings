@@ -347,6 +347,11 @@ async function handleCancelBooking() {
   if (!selectedSlot.value || !selectedSlot.value.bookingRef) return
 
   await bookingStore.cancelScheduleBooking(selectedSlot.value.bookingRef)
+  await bookingStore.refreshRoomBookings()
+  const dateStr = format(currentDate.value, 'yyyy-MM-dd')
+  await Promise.all(
+    bookingStore.rooms.map(r => bookingStore.fetchRoomAvailableSlots(r.id, dateStr, dateStr))
+  )
 
   showCancelModal.value = false
   selectedSlot.value = null
