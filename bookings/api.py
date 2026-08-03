@@ -636,11 +636,18 @@ def _available_slot_doc(room, date_str, start_hm, end_hm):
 @frappe.whitelist()
 def book_room_slot(room, date, start_time, end_time, notes=None,
                    customer_name=None, customer_email=None):
-    """Book one seat on a room's Available Slot (capacity-aware, atomic)."""
+    """Book one seat on a room's Available Slot (capacity-aware, atomic).
+
+    If a predefined Available Slot exists, use it (increment booked count).
+    Otherwise, treat as a virtual slot — create the Room Booking directly
+    without creating a new Available Slot record.
+    """
     from bookings.bookings.doctype.room_booking.room_booking import (
         _available_slot_doc,
         _increment_available_slot,
         _combine_datetime,
+        _slot_booked_rooms,
+        _room_capacity,
         generate_booking_ref,
     )
 
@@ -656,16 +663,39 @@ def book_room_slot(room, date, start_time, end_time, notes=None,
         frappe.throw("A start time is required")
 
     slot_doc = _available_slot_doc(room, date, start_hm, end_hm)
-    if not slot_doc:
-        frappe.throw(
-            f"No availability is defined for {start_hm} on {date}. "
-            "Please contact an administrator to create an availability block."
+    if slot_doc:
+        _increment_available_slot(
+            slot_doc.name,
+            f"This room is fully booked at {start_hm} on {date}",
         )
+    else:
+        booked = len(_slot_booked_rooms(room, date, start_hm))
+        capacity = _room_capacity(room)
+        if booked >= capacity:
+            frappe.throw(
+                f"This room is fully booked at {start_hm} on {date}"
+            )
 
-    _increment_available_slot(
-        slot_doc.name,
-        f"This room is fully booked at {start_hm} on {date}",
-    )
+    booking = frappe.get_doc({
+        "doctype": "Room Booking",
+        "available_slot": slot_doc.name if slot_doc else "",
+        "reservation_item": room,
+        "customer_name": customer_name,
+        "customer_email": customer_email,
+        "booking_date": date,
+        "from_time": _combine_datetime(date, start_hm),
+        "to_time": _combine_datetime(date, end_hm),
+        "notes": notes,
+        "status": "Confirmed",
+        "booking_ref": generate_booking_ref(),
+    })
+    booking.insert(ignore_permissions=True)
+
+    return {
+        "success": True,
+        "name": booking.name,
+        "booking_ref": booking.booking_ref,
+    }
 
     booking = frappe.get_doc({
         "doctype": "Room Booking",
