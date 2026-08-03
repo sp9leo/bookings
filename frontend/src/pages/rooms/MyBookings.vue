@@ -417,25 +417,33 @@ function formatDate(dateStr: string): string {
 const availableSlots = computed((): AvailableSlot[] => {
   if (!selectedBooking.value) return []
   
-  return bookingStore.timeSlots.map(time => {
-    const hour = parseInt(time.split(':')[0])
-    const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`
-    
-    const existingSlot = bookingStore.getScheduleSlot(
-      selectedBooking.value!.roomId,
-      selectedBooking.value!.date,
-      time
-    )
-    
-    const isCurrentBooking = existingSlot?.bookingRef === selectedBooking.value!.bookingRef
-    
-    return {
-      time,
-      endTime,
-      isBooked: existingSlot?.status === 'booked' && !isCurrentBooking,
-      bookedBy: existingSlot?.bookedBy
-    }
-  })
+  const bookingDate = selectedBooking.value.date
+  const now = new Date()
+
+  return bookingStore.timeSlots
+    .map(time => {
+      const hour = parseInt(time.split(':')[0])
+      const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`
+      
+      const existingSlot = bookingStore.getScheduleSlot(
+        selectedBooking.value!.roomId,
+        selectedBooking.value!.date,
+        time
+      )
+      
+      const isCurrentBooking = existingSlot?.bookingRef === selectedBooking.value!.bookingRef
+      
+      return {
+        time,
+        endTime,
+        isBooked: existingSlot?.status === 'booked' && !isCurrentBooking,
+        bookedBy: existingSlot?.bookedBy
+      }
+    })
+    .filter(slot => {
+      const slotDateTime = new Date(`${bookingDate}T${slot.time}`)
+      return slotDateTime > now
+    })
 })
 
 function viewSessionReservation(res: SessionReservation) {

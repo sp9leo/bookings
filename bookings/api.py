@@ -462,7 +462,7 @@ def get_current_user():
 def update_booking_time(booking_ref, new_start_time, new_end_time):
     """Move a room booking to a new start/end time on the same date."""
     from bookings.bookings.doctype.room_booking.room_booking import (
-        _ensure_available_slot,
+        _available_slot_name,
         _increment_available_slot,
         _release_available_slot,
         _combine_datetime,
@@ -476,19 +476,21 @@ def update_booking_time(booking_ref, new_start_time, new_end_time):
     room = booking.reservation_item
     date = str(booking.booking_date).split(" ")[0]
     start_hm = _time_of(new_start_time)
-    end_hm = _time_of(new_end_time)
     if not start_hm:
         frappe.throw("A start time is required")
 
-    new_slot = _ensure_available_slot(room, date, start_hm, end_hm)
+    target_slot_name = _available_slot_name(room, date, start_hm)
 
-    if new_slot.name != booking.available_slot:
+    if target_slot_name and target_slot_name != booking.available_slot:
         _increment_available_slot(
-            new_slot.name,
+            target_slot_name,
             f"This room is fully booked at {start_hm} on {date}",
         )
         _release_available_slot(booking.available_slot)
-        booking.available_slot = new_slot.name
+        booking.available_slot = target_slot_name
+    elif not target_slot_name:
+        _release_available_slot(booking.available_slot)
+        booking.available_slot = None
 
     if booking.schedule_slot:
         try:
