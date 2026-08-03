@@ -59,13 +59,6 @@
   },
   {
    "type": "Link",
-   "label": "Schedule periods",
-   "link_type": "DocType",
-   "link_to": "Schedule periods",
-   "icon": "layers"
-  },
-  {
-   "type": "Link",
    "label": "Schedule Slot",
    "link_type": "DocType",
    "link_to": "Schedule Slot",
