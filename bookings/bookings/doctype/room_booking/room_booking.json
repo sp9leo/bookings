@@ -4,9 +4,10 @@
   "autoname": "RBK-.####",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": [
-  "schedule_slot",
-  "reservation_item",
+  "field_order": [
+   "schedule_slot",
+   "available_slot",
+   "reservation_item",
   "customer_name",
   "customer_email",
   "booking_date",
@@ -23,6 +24,13 @@
    "in_list_view": 1,
    "label": "Schedule Slot",
    "options": "Schedule Slot"
+  },
+  {
+   "fieldname": "available_slot",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Available Slot",
+   "options": "Available Slot"
   },
   {
    "fieldname": "reservation_item",

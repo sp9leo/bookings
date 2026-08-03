@@ -53,7 +53,9 @@
                 <template v-else>
                   <div class="text-[12px] leading-tight font-medium truncate flex items-center gap-0.5">
                     {{ shortName(getSlot(room.id, day.dateStr, ts)?.bookedBy || '') }}
-                    <span v-if="getSlot(room.id, day.dateStr, ts)?.recurringGroupId" class="text-[10px] text-gray-400">↻</span>
+                    <span v-if="(getSlot(room.id, day.dateStr, ts)?.capacity ?? 1) > 1" class="text-[9px] text-gray-500">
+                      {{ getSlot(room.id, day.dateStr, ts)?.bookedCount }}/{{ getSlot(room.id, day.dateStr, ts)?.capacity }}
+                    </span>
                   </div>
                   <div class="text-[9px] leading-tight text-gray-500 truncate">{{ getSlot(room.id, day.dateStr, ts)?.description || '' }}</div>
                 </template>
@@ -77,10 +79,16 @@ interface ScheduleSlot {
   roomId: string
   date: string
   time: string
+  endTime?: string
   status: 'free' | 'booked' | 'past'
+  bookedCount: number
+  capacity: number
+  isFull: boolean
   bookedBy?: string
+  bookers?: { bookingRef: string; name: string; notes?: string }[]
   description?: string
   bookingRef?: string
+  myBookingRef?: string
   isOwn?: boolean
   recurringGroupId?: string
 }
@@ -185,7 +193,7 @@ function cellStyle(slot: ScheduleSlot | undefined): Record<string, string> {
 function handleClick(roomId: string, dateStr: string, time: string) {
   let slot = getSlot(roomId, dateStr, time)
   if (!slot) {
-    slot = { id: '', roomId, date: dateStr, time, status: 'free' } as ScheduleSlot
+    slot = { id: '', roomId, date: dateStr, time, status: 'free', bookedCount: 0, capacity: 1, isFull: false } as ScheduleSlot
   }
   if (slot.status === 'past') return
   if (slot.status === 'booked' && !isOwn(slot) && !authStore.isAdmin) return

@@ -1,6 +1,8 @@
 # Bookings Module API
 # Public and internal endpoints for the booking system
 
+from datetime import datetime
+
 import frappe
 
 
@@ -262,12 +264,13 @@ def _cancel_bookings_for_removed_times(times):
     if not times:
         return
     from bookings.bookings.doctype.room_booking.room_booking import cancel_room_booking
-    slots = frappe.get_all(
+
+    legacy_slots = frappe.get_all(
         "Schedule Slot",
         filters={"status": "Booked"},
         fields=["name", "start_time", "booking_ref"],
     )
-    for slot in slots:
+    for slot in legacy_slots:
         if _time_of(slot.get("start_time")) not in times:
             continue
         if not slot.get("booking_ref"):
@@ -276,6 +279,31 @@ def _cancel_bookings_for_removed_times(times):
             cancel_room_booking(slot["booking_ref"])
         except Exception:
             frappe.log_error(frappe.get_traceback(), "cancel booking for removed time slot")
+
+    available_bookings = frappe.get_all(
+        "Room Booking",
+        filters={"status": "Confirmed", "from_time": ("is", "set")},
+        fields=["booking_ref", "from_time"],
+    )
+    for booking in available_bookings:
+        if _time_of(booking.get("from_time")) not in times:
+            continue
+        try:
+            cancel_room_booking(booking["booking_ref"])
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "cancel available booking for removed time slot")
+
+    empty_slots = frappe.get_all(
+        "Available Slot",
+        filters={"booked": 0},
+        fields=["name", "start_time"],
+    )
+    for slot in empty_slots:
+        if _time_of(slot.get("start_time")) in times:
+            try:
+                frappe.delete_doc("Available Slot", slot["name"], force=True, ignore_permissions=True)
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), "clean empty available slot for removed time")
 
 
 @frappe.whitelist()
@@ -426,17 +454,44 @@ def get_current_user():
 @frappe.whitelist()
 def update_booking_time(booking_ref, new_start_time, new_end_time):
     """Move a room booking to a new start/end time on the same date."""
+    from bookings.bookings.doctype.room_booking.room_booking import (
+        _ensure_available_slot,
+        _increment_available_slot,
+        _release_available_slot,
+        _combine_datetime,
+    )
+
     booking = frappe.get_doc("Room Booking", {"booking_ref": booking_ref})
 
     if booking.status == "Cancelled":
         frappe.throw("Cannot move a cancelled booking")
 
-    slot_doc = frappe.get_doc("Schedule Slot", booking.schedule_slot)
-    slot_doc.start_time = new_start_time
-    slot_doc.end_time = new_end_time
-    slot_doc.save(ignore_permissions=True)
+    room = booking.reservation_item
+    date = str(booking.booking_date).split(" ")[0]
+    start_hm = _time_of(new_start_time)
+    end_hm = _time_of(new_end_time)
+    if not start_hm:
+        frappe.throw("A start time is required")
 
-    from bookings.bookings.doctype.reservation.reservation import _combine_datetime
+    new_slot = _ensure_available_slot(room, date, start_hm, end_hm)
+
+    if new_slot.name != booking.available_slot:
+        _increment_available_slot(
+            new_slot.name,
+            f"This room is fully booked at {start_hm} on {date}",
+        )
+        _release_available_slot(booking.available_slot)
+        booking.available_slot = new_slot.name
+
+    if booking.schedule_slot:
+        try:
+            legacy = frappe.get_doc("Schedule Slot", booking.schedule_slot)
+            legacy.status = "Free"
+            legacy.booking_ref = None
+            legacy.save(ignore_permissions=True)
+        except Exception:
+            pass
+
     booking.from_time = _combine_datetime(booking.booking_date, new_start_time)
     booking.to_time = _combine_datetime(booking.booking_date, new_end_time)
     booking.save(ignore_permissions=True)
@@ -447,6 +502,190 @@ def update_booking_time(booking_ref, new_start_time, new_end_time):
         "start_time": new_start_time,
         "end_time": new_end_time,
     }
+
+
+@frappe.whitelist()
+def update_booking_details(booking_ref, notes=None, customer_name=None):
+    """Update notes and/or booked-by name on a room booking."""
+    booking = frappe.get_doc("Room Booking", {"booking_ref": booking_ref})
+
+    if booking.status == "Cancelled":
+        frappe.throw("Cannot edit a cancelled booking")
+
+    if notes is not None:
+        booking.notes = notes
+    if customer_name is not None:
+        booking.customer_name = customer_name
+    booking.save(ignore_permissions=True)
+
+    return {"success": True, "name": booking.name}
+
+
+@frappe.whitelist()
+def get_room_available_slots(room, start_date, end_date):
+    """Get available slots for a room across a date range using the global time list.
+
+    Slots that already exist (or have bookings) are returned as-is; the rest are
+    returned as lightweight placeholders so the frontend can render the full grid
+    without creating rows until a booking actually happens.
+    """
+    from frappe.utils import add_days
+    from bookings.bookings.doctype.room_booking.room_booking import (
+        _slot_booked_rooms,
+        _room_capacity,
+        _combine_datetime,
+    )
+
+    periods = _global_periods()
+    user = frappe.session.user
+
+    dates = []
+    current = frappe.utils.getdate(start_date)
+    end = frappe.utils.getdate(end_date)
+    while current <= end:
+        dates.append(current)
+        current = add_days(current, 1)
+
+    result = []
+    for date in dates:
+        date_str = frappe.utils.format_date(date, "yyyy-MM-dd")
+        for period in periods:
+            start_hm = _time_of(period.get("start_time"))
+            end_hm = _time_of(period.get("end_time"))
+            if not start_hm:
+                continue
+
+            booked_rows = _slot_booked_rooms(room, date_str, start_hm)
+            booked = len(booked_rows)
+
+            slot = _available_slot_doc(room, date_str, start_hm, end_hm)
+            capacity = slot.capacity if slot else _room_capacity(room)
+
+            slot_datetime = datetime.strptime(_combine_datetime(date_str, start_hm), "%Y-%m-%d %H:%M:%S")
+            is_past = slot_datetime < datetime.now()
+            is_full = booked >= capacity
+            status = "past" if is_past else ("booked" if is_full else "free")
+
+            my_ref = next(
+                (r["booking_ref"] for r in booked_rows if r.get("customer_email") == user),
+                None,
+            )
+            primary = (
+                next((r for r in booked_rows if r.get("customer_email") == user), None)
+                or (booked_rows[0] if booked_rows else None)
+            )
+
+            result.append({
+                "name": slot.name if slot else "",
+                "reservation_item": room,
+                "slot_date": date_str,
+                "start_time": slot.start_time if slot else _combine_datetime(date_str, start_hm),
+                "end_time": slot.end_time if slot else _combine_datetime(date_str, end_hm),
+                "capacity": capacity,
+                "booked": booked,
+                "is_full": 1 if is_full else 0,
+                "status": status,
+                "bookers": [
+                    {
+                        "booking_ref": r["booking_ref"],
+                        "customer_name": r["customer_name"],
+                        "notes": r.get("notes"),
+                    }
+                    for r in booked_rows
+                ],
+                "my_booking_ref": my_ref,
+                "booking_ref": my_ref or (primary["booking_ref"] if primary else None),
+                "booked_by": primary["customer_name"] if primary else "",
+                "description": primary.get("notes") if primary else "",
+            })
+    return result
+
+
+def _available_slot_doc(room, date_str, start_hm, end_hm):
+    """Return the persisted Available Slot for a room/date/start, or None."""
+    from bookings.bookings.doctype.room_booking.room_booking import _available_slot_name
+    name = _available_slot_name(room, date_str, start_hm)
+    if name:
+        return frappe.get_doc("Available Slot", name)
+    return None
+
+
+@frappe.whitelist()
+def book_room_slot(room, date, start_time, end_time, notes=None,
+                   customer_name=None, customer_email=None):
+    """Book one seat on a room's Available Slot (capacity-aware, atomic)."""
+    from bookings.bookings.doctype.room_booking.room_booking import (
+        _ensure_available_slot,
+        _increment_available_slot,
+        _combine_datetime,
+        generate_booking_ref,
+    )
+
+    user = frappe.session.user
+    if not customer_name:
+        customer_name = frappe.get_value("User", user, "full_name") or user
+    if not customer_email:
+        customer_email = user
+
+    start_hm = _time_of(start_time)
+    end_hm = _time_of(end_time)
+    if not start_hm:
+        frappe.throw("A start time is required")
+
+    slot_doc = _ensure_available_slot(room, date, start_hm, end_hm)
+    _increment_available_slot(
+        slot_doc.name,
+        f"This room is fully booked at {start_hm} on {date}",
+    )
+
+    booking = frappe.get_doc({
+        "doctype": "Room Booking",
+        "available_slot": slot_doc.name,
+        "reservation_item": room,
+        "customer_name": customer_name,
+        "customer_email": customer_email,
+        "booking_date": date,
+        "from_time": _combine_datetime(date, start_hm),
+        "to_time": _combine_datetime(date, end_hm),
+        "notes": notes,
+        "status": "Confirmed",
+        "booking_ref": generate_booking_ref(),
+    })
+    booking.insert(ignore_permissions=True)
+
+    return {
+        "name": booking.name,
+        "booking_ref": booking.booking_ref,
+        "available_slot": slot_doc.name,
+    }
+
+
+@frappe.whitelist()
+def book_room_recurring(room, dates, start_time, end_time, notes=None,
+                        customer_name=None, customer_email=None):
+    """Create room bookings across multiple dates for the same time."""
+    import json
+
+    if isinstance(dates, str):
+        try:
+            dates = json.loads(dates)
+        except Exception:
+            dates = [d.strip() for d in dates.split(",") if d.strip()]
+
+    if not _time_of(start_time):
+        frappe.throw("A start time is required")
+
+    created = []
+    for slot_date in dates:
+        try:
+            res = book_room_slot(
+                room, slot_date, start_time, end_time, notes, customer_name, customer_email
+            )
+        except Exception:
+            continue
+        created.append({"date": slot_date, "booking_ref": res["booking_ref"]})
+
+    return {"success": True, "created": created}
 
 
 @frappe.whitelist()

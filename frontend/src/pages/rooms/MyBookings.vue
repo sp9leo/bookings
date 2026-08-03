@@ -319,7 +319,7 @@ async function refreshScheduleSlots() {
   const start = format(addDays(new Date(), -30), 'yyyy-MM-dd')
   const end = format(addDays(new Date(), 60), 'yyyy-MM-dd')
   await Promise.all(
-    [...roomIds].map(id => bookingStore.fetchRoomScheduleSlots(id, start, end))
+    [...roomIds].map(id => bookingStore.fetchRoomAvailableSlots(id, start, end))
   )
 }
 

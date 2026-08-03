@@ -202,8 +202,7 @@ const isFormValid = computed(() => {
 onMounted(async () => {
   if (bookingStore.rooms.length === 0) await bookingStore.fetchRooms()
   await bookingStore.fetchGlobalTimeSlots()
-  await bookingStore.fetchSchedules()
-  await bookingStore.fetchRoomScheduleSlots(roomId, format(minDate, 'yyyy-MM-dd'), format(maxDate, 'yyyy-MM-dd'))
+  await bookingStore.fetchRoomAvailableSlots(roomId, format(minDate, 'yyyy-MM-dd'), format(maxDate, 'yyyy-MM-dd'))
   if (authStore.currentUser) {
     form.name = authStore.currentUser.name
     form.email = authStore.currentUser.email

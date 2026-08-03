@@ -83,7 +83,7 @@ onMounted(async () => {
   const end = addDays(today, 7)
   await Promise.all(
     bookingStore.rooms.map(r =>
-      bookingStore.fetchRoomScheduleSlots(r.id, format(today, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'))
+      bookingStore.fetchRoomAvailableSlots(r.id, format(today, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'))
     )
   )
   pending.value = false

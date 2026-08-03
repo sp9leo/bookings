@@ -118,7 +118,7 @@ onMounted(async () => {
   const start = format(new Date(), 'yyyy-MM-dd')
   const end = format(addDays(new Date(), 90), 'yyyy-MM-dd')
   for (const room of bookingStore.rooms) {
-    await bookingStore.fetchRoomScheduleSlots(room.id, start, end)
+    await bookingStore.fetchRoomAvailableSlots(room.id, start, end)
   }
   for (const item of bookingStore.items) {
     await bookingStore.fetchSlots(item.id)
@@ -126,14 +126,14 @@ onMounted(async () => {
 })
 
 const totalBookings = computed(() =>
-  bookingStore.scheduleSlots.filter(s => s.status === 'booked').length
+  bookingStore.scheduleSlots.filter(s => (s.bookedCount ?? 0) > 0).length
 )
 
 const upcomingBookings = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return bookingStore.scheduleSlots.filter(s => {
-    if (s.status !== 'booked') return false
+    if ((s.bookedCount ?? 0) <= 0) return false
     const d = new Date(s.date)
     return d >= today
   }).length
@@ -144,14 +144,14 @@ const personSlotCount = computed(() =>
 )
 
 const myBookingsCount = computed(() =>
-  bookingStore.scheduleSlots.filter(s => s.status === 'booked' && s.bookedBy === authStore.currentUser?.name).length
+  bookingStore.scheduleSlots.filter(s => (s.bookedCount ?? 0) > 0 && s.bookedBy === authStore.currentUser?.name).length
 )
 
 const myUpcomingCount = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return bookingStore.scheduleSlots.filter(s => {
-    if (s.status !== 'booked' || s.bookedBy !== authStore.currentUser?.name) return false
+    if ((s.bookedCount ?? 0) <= 0 || s.bookedBy !== authStore.currentUser?.name) return false
     const d = new Date(s.date)
     return d >= today
   }).length

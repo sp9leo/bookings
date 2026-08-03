@@ -61,7 +61,7 @@
                     </div>
                     <div>
                       <p class="text-xs text-gray-500 mb-1">Current Time</p>
-                      <p class="font-semibold text-gray-900">{{ selectedSlot?.time }} - {{ getEndTime(selectedSlot?.time || '') }}</p>
+                      <p class="font-semibold text-gray-900">{{ selectedSlot?.time }} - {{ selectedSlot?.endTime || getEndTime(selectedSlot?.time || '') }}</p>
                     </div>
                   </div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">Description</label>
@@ -221,10 +221,16 @@ interface ScheduleSlot {
   roomId: string
   date: string
   time: string
+  endTime?: string
   status: 'free' | 'booked' | 'past'
+  bookedCount: number
+  capacity: number
+  isFull: boolean
   bookedBy?: string
+  bookers?: { bookingRef: string; name: string; notes?: string }[]
   description?: string
   bookingRef?: string
+  myBookingRef?: string
   isOwn?: boolean
   recurringGroupId?: string
 }
@@ -264,7 +270,7 @@ onMounted(async () => {
   const start = format(weekStart, 'yyyy-MM-dd')
   const end = format(addDays(weekStart, 60), 'yyyy-MM-dd')
   await Promise.all(
-    bookingStore.rooms.map(r => bookingStore.fetchRoomScheduleSlots(r.id, start, end))
+    bookingStore.rooms.map(r => bookingStore.fetchRoomAvailableSlots(r.id, start, end))
   )
 })
 
@@ -292,7 +298,7 @@ function handleSlotClick(slot: ScheduleSlot) {
   const room = bookingStore.getRoomById(slot.roomId)
   selectedRoomName.value = room?.name || ''
 
-  const owned = !!currentUser.value && slot.bookedBy === currentUser.value.name
+  const owned = !!currentUser.value && (!!slot.myBookingRef || slot.bookedBy === currentUser.value.name)
   const editable = slot.status === 'booked' && (owned || authStore.isAdmin)
   if (editable) {
     editDescription.value = slot.description || ''

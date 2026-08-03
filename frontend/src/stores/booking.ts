@@ -106,10 +106,16 @@ export interface ScheduleSlot {
   roomId: string
   date: string
   time: string
+  endTime?: string
   status: 'free' | 'booked' | 'past'
+  bookedCount: number
+  capacity: number
+  isFull: boolean
   bookedBy?: string
+  bookers?: { bookingRef: string; name: string; notes?: string }[]
   description?: string
   bookingRef?: string
+  myBookingRef?: string
   isOwn?: boolean
   recurringGroupId?: string
   periodNumber?: number
@@ -210,7 +216,7 @@ function mapReservation(apiRes: any, itemNames: Map<string, string>): Reservatio
 function mapRoomBooking(apiB: any, roomNames: Map<string, string>): RoomBooking {
   return {
     id: apiB.name,
-    roomSlotId: apiB.schedule_slot || '',
+    roomSlotId: apiB.available_slot || apiB.schedule_slot || '',
     roomName: roomNames.get(apiB.reservation_item) || '',
     roomId: apiB.reservation_item,
     date: dateOf(apiB.from_time) || apiB.booking_date,
@@ -225,18 +231,39 @@ function mapRoomBooking(apiB: any, roomNames: Map<string, string>): RoomBooking 
 }
 
 function mapScheduleSlot(apiSlot: any): ScheduleSlot {
-  const slotDateTime = new Date(`${apiSlot.slot_date}T${timeOf(apiSlot.start_time)}`)
+  const startTime = timeOf(apiSlot.start_time)
+  const endTime = timeOf(apiSlot.end_time) || toEndTime(startTime)
+  const slotDateTime = new Date(`${apiSlot.slot_date}T${startTime}`)
   const isPast = slotDateTime.getTime() < Date.now()
-  const status: ScheduleSlot['status'] = apiSlot.status === 'Booked' ? 'booked' : isPast ? 'past' : 'free'
+  const bookedCount = Number(apiSlot.booked) || 0
+  const capacity = Number(apiSlot.capacity) || 1
+  const isFull = bookedCount >= capacity
+  const bookers = (apiSlot.bookers || []).map((b: any) => ({
+    bookingRef: b.booking_ref,
+    name: b.customer_name,
+    notes: b.notes,
+  }))
+  const primary = bookers.find((b: any) => b.bookingRef === apiSlot.my_booking_ref) || bookers[0] || null
+  const status: ScheduleSlot['status'] = isPast
+    ? 'past'
+    : apiSlot.status === 'booked' || isFull
+      ? 'booked'
+      : 'free'
   return {
-    id: apiSlot.name,
+    id: apiSlot.name || `new-${apiSlot.reservation_item}-${apiSlot.slot_date}-${startTime.replace(':', '')}`,
     roomId: apiSlot.reservation_item,
     date: apiSlot.slot_date,
-    time: timeOf(apiSlot.start_time),
+    time: startTime,
+    endTime,
     status,
-    bookedBy: apiSlot.booked_by || '',
-    description: apiSlot.description || '',
-    bookingRef: apiSlot.booking_ref || undefined,
+    bookedCount,
+    capacity,
+    isFull,
+    bookedBy: primary?.name || apiSlot.booked_by || '',
+    bookers,
+    description: primary?.notes || apiSlot.description || '',
+    bookingRef: apiSlot.my_booking_ref || apiSlot.booking_ref || (primary ? primary.bookingRef : undefined),
+    myBookingRef: apiSlot.my_booking_ref || undefined,
     periodNumber: apiSlot.period_number,
   }
 }
@@ -298,12 +325,14 @@ export const useBookingStore = defineStore('booking', {
           (s) => s.roomId === roomId && s.date === date && s.time === time
         )
         return {
-          id: `RS-${date}-${time.replace(':', '')}-${roomId}`,
+          id: scheduleSlot?.id || `RS-${date}-${time.replace(':', '')}-${roomId}`,
           roomId,
           date,
           from: time,
-          to: toEndTime(time),
-          isBooked: scheduleSlot ? scheduleSlot.status === 'booked' || scheduleSlot.status === 'past' : false,
+          to: scheduleSlot?.endTime || toEndTime(time),
+          isBooked: scheduleSlot
+            ? scheduleSlot.status === 'booked' || scheduleSlot.status === 'past'
+            : false,
           bookedBy: scheduleSlot?.bookedBy,
         } as RoomSlot
       })
@@ -344,31 +373,9 @@ export const useBookingStore = defineStore('booking', {
       const user = authStore.currentUser
       if (!user) return []
 
-      const fromRoomBookings = state.roomBookings.filter(
+      return state.roomBookings.filter(
         (b) => b.userEmail.toLowerCase() === user.email.toLowerCase()
       )
-
-      const fromScheduleSlots: RoomBooking[] = state.scheduleSlots
-        .filter((s) => s.status === 'booked' && s.bookedBy === user.name && s.bookingRef)
-        .filter((s) => !state.roomBookings.some((b) => b.bookingRef === s.bookingRef))
-        .map((s) => {
-          const room = state.rooms.find((r) => r.id === s.roomId)
-          return {
-            id: s.id,
-            roomSlotId: s.id,
-            roomName: room?.name || 'Unknown',
-            roomId: s.roomId,
-            date: s.date,
-            from: s.time,
-            to: toEndTime(s.time),
-            userName: user.name,
-            userEmail: user.email,
-            status: 'Confirmed' as const,
-            bookingRef: s.bookingRef!,
-          }
-        })
-
-      return [...fromRoomBookings, ...fromScheduleSlots]
     },
 
     getUserUpcomingBookings: (state) => {
@@ -539,18 +546,22 @@ export const useBookingStore = defineStore('booking', {
       return true
     },
 
-    async fetchRoomScheduleSlots(roomId: string, startDate?: string, endDate?: string) {
-      const params: Record<string, any> = { item: roomId }
+    async fetchRoomAvailableSlots(roomId: string, startDate?: string, endDate?: string) {
+      const params: Record<string, any> = { room: roomId }
       if (startDate) params.start_date = startDate
       if (endDate) params.end_date = endDate
-      const data = (await apiGet(`${API}.get_schedule_for_room`, params)) as any[] | null
+      const data = (await apiGet(`${API}.get_room_available_slots`, params)) as any[] | null
       if (!Array.isArray(data)) return
       const mapped = (data || []).map(mapScheduleSlot)
-      const newIds = new Set(mapped.map((s) => s.id))
+      const keys = new Set(mapped.map((s) => `${s.roomId}|${s.date}|${s.time}`))
       this.scheduleSlots = [
-        ...this.scheduleSlots.filter((s) => s.roomId !== roomId || !newIds.has(s.id)),
+        ...this.scheduleSlots.filter((s) => s.roomId !== roomId || !keys.has(`${s.roomId}|${s.date}|${s.time}`)),
         ...mapped,
       ]
+    },
+
+    async fetchRoomScheduleSlots(roomId: string, startDate?: string, endDate?: string) {
+      await this.fetchRoomAvailableSlots(roomId, startDate, endDate)
     },
 
     async fetchMySessionReservations() {
@@ -693,58 +704,75 @@ export const useBookingStore = defineStore('booking', {
       return mapped
     },
 
-    async bookRoomBooking(roomId: string, date: string, time: string, description: string): Promise<RoomBooking | null> {
-      let schedule = this.getScheduleForRoom(roomId)
-      if (!schedule) schedule = await this.ensureRoomSchedule(roomId)
-      if (!schedule) {
-        if (!this.error) this.error = 'No schedule is set up for this room.'
-        return null
-      }
-      const period = this.findPeriodForTime(schedule, time)
-      if (!period) {
-        this.error = `Time ${time} is not in this room's schedule.`
-        return null
-      }
+    async bookRoomAvailableSlot(
+      roomId: string,
+      date: string,
+      time: string,
+      description: string,
+      bookedBy?: { name: string; email: string },
+      endTime?: string
+    ): Promise<RoomBooking | null> {
+      const existing = this.scheduleSlots.find(
+        (s) => s.roomId === roomId && s.date === date && s.time === time
+      )
+      const end = endTime || existing?.endTime || toEndTime(time)
+      const customerName = bookedBy?.name || useAuthStore().currentUser?.name || ''
+      const customerEmail = bookedBy?.email || useAuthStore().currentUser?.email || ''
 
-      const slotDoc = await apiGet<any>(`${API}.get_or_create_slot`, {
-        schedule: schedule.name,
-        slot_date: date,
-        period_number: period.period_number,
-      })
-      if (!slotDoc || typeof slotDoc.name !== 'string') {
-        this.error = 'Could not create a slot for the selected time.'
+      let res: any
+      try {
+        res = await apiPost<any>(`${API}.book_room_slot`, {
+          room: roomId,
+          date,
+          start_time: time,
+          end_time: end,
+          notes: description || null,
+          customer_name: customerName,
+          customer_email: customerEmail,
+        })
+      } catch (e: any) {
+        this.error = e?.message || 'Booking failed. Please try again.'
         return null
       }
-
-      const res = await safePost<any>(`${API}.book_room`, {
-        schedule_slot: slotDoc.name,
-        notes: description || null,
-      })
-      if (!res) return null
+      if (!res || !res.booking_ref) {
+        if (!this.error) this.error = 'Booking failed. Please try again.'
+        return null
+      }
 
       this.error = ''
-      await this.fetchRoomScheduleSlots(roomId, date, date)
+      await this.fetchRoomAvailableSlots(roomId, date, date)
       await this.fetchMyRoomBookings()
 
       const room = this.getRoomById(roomId)
       return {
         id: res.name,
-        roomSlotId: slotDoc.name,
+        roomSlotId: res.available_slot || '',
         roomName: room?.name || '',
         roomId,
         date,
         from: time,
-        to: toEndTime(time),
-        userName: useAuthStore().currentUser?.name || '',
-        userEmail: useAuthStore().currentUser?.email || '',
+        to: end,
+        userName: customerName,
+        userEmail: customerEmail,
         status: 'Confirmed',
         bookingRef: res.booking_ref,
         notes: description,
       }
     },
 
+    async bookRoomBooking(roomId: string, date: string, time: string, description: string): Promise<RoomBooking | null> {
+      return this.bookRoomAvailableSlot(roomId, date, time, description)
+    },
+
     async createRoomBooking(slot: RoomSlot, _userName: string, _userEmail: string, description = ''): Promise<RoomBooking | null> {
-      return this.bookRoomBooking(slot.roomId, slot.date, slot.from, description)
+      return this.bookRoomAvailableSlot(
+        slot.roomId,
+        slot.date,
+        slot.from,
+        description,
+        { name: _userName, email: _userEmail },
+        slot.to
+      )
     },
 
     async bookScheduleSlot(
@@ -752,9 +780,9 @@ export const useBookingStore = defineStore('booking', {
       date: string,
       time: string,
       description: string,
-      _bookedBy?: { name: string; email: string }
+      bookedBy?: { name: string; email: string }
     ): Promise<RoomBooking | null> {
-      return this.bookRoomBooking(roomId, date, time, description)
+      return this.bookRoomAvailableSlot(roomId, date, time, description, bookedBy)
     },
 
     async bookRecurringScheduleSlot(
@@ -763,19 +791,14 @@ export const useBookingStore = defineStore('booking', {
       time: string,
       description: string,
       recurrence: RecurrenceConfig,
-      _bookedBy?: { name: string; email: string }
+      bookedBy?: { name: string; email: string }
     ): Promise<string | null> {
-      let schedule = this.getScheduleForRoom(roomId)
-      if (!schedule) schedule = await this.ensureRoomSchedule(roomId)
-      if (!schedule) {
-        if (!this.error) this.error = 'No schedule is set up for this room.'
-        return null
-      }
-      const period = this.findPeriodForTime(schedule, time)
-      if (!period) {
-        this.error = `Time ${time} is not in this room's schedule.`
-        return null
-      }
+      const existing = this.scheduleSlots.find(
+        (s) => s.roomId === roomId && s.date === date && s.time === time
+      )
+      const end = existing?.endTime || toEndTime(time)
+      const customerName = bookedBy?.name || useAuthStore().currentUser?.name || ''
+      const customerEmail = bookedBy?.email || useAuthStore().currentUser?.email || ''
 
       const dates: string[] = []
       let current = parseISO(date)
@@ -797,16 +820,25 @@ export const useBookingStore = defineStore('booking', {
 
       if (dates.length === 0) return null
 
-      const res = await safePost<any>(`${API}.create_recurring_room_bookings`, {
-        schedule: schedule.name,
-        dates: JSON.stringify(dates),
-        period_number: period.period_number,
-        notes: description || null,
-      })
+      let res: any
+      try {
+        res = await apiPost<any>(`${API}.book_room_recurring`, {
+          room: roomId,
+          dates: JSON.stringify(dates),
+          start_time: time,
+          end_time: end,
+          notes: description || null,
+          customer_name: customerName,
+          customer_email: customerEmail,
+        })
+      } catch (e: any) {
+        this.error = e?.message || 'Booking failed. Please try again.'
+        return null
+      }
       if (!res?.success) return null
 
       this.error = ''
-      await this.fetchRoomScheduleSlots(roomId, date, date)
+      await this.fetchRoomAvailableSlots(roomId, date, date)
       await this.fetchMyRoomBookings()
 
       const created = res.created || []
@@ -814,20 +846,22 @@ export const useBookingStore = defineStore('booking', {
     },
 
     async updateScheduleSlotDescription(bookingRef: string, description: string, _scope: Scope = 'this'): Promise<boolean> {
-      const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
-      if (!slot || slot.status !== 'booked') return false
-      const res = await safePost<any>(`${API}.update_slot_details`, { slot: slot.id, description })
+      const res = await safePost<any>(`${API}.update_booking_details`, { booking_ref: bookingRef, notes: description })
       if (!res?.success) return false
-      slot.description = description
+      const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
+      if (slot) slot.description = description
+      const booking = this.roomBookings.find((b) => b.bookingRef === bookingRef)
+      if (booking) booking.notes = description
       return true
     },
 
     async updateScheduleSlotBookedBy(bookingRef: string, name: string, _scope: Scope = 'this'): Promise<boolean> {
-      const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
-      if (!slot || slot.status !== 'booked') return false
-      const res = await safePost<any>(`${API}.update_slot_details`, { slot: slot.id, booked_by: name })
+      const res = await safePost<any>(`${API}.update_booking_details`, { booking_ref: bookingRef, customer_name: name })
       if (!res?.success) return false
-      slot.bookedBy = name
+      const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
+      if (slot) slot.bookedBy = name
+      const booking = this.roomBookings.find((b) => b.bookingRef === bookingRef)
+      if (booking) booking.userName = name
       return true
     },
 
@@ -843,7 +877,10 @@ export const useBookingStore = defineStore('booking', {
         slot.status = 'free'
         slot.bookedBy = ''
         slot.bookingRef = undefined
+        slot.myBookingRef = undefined
         slot.description = ''
+        slot.bookers = []
+        slot.bookedCount = Math.max(0, slot.bookedCount - 1)
       }
       const booking = this.roomBookings.find((b) => b.bookingRef === bookingRef)
       if (booking) booking.status = 'Cancelled'
@@ -862,17 +899,29 @@ export const useBookingStore = defineStore('booking', {
       const booking = this.roomBookings.find((b) => b.bookingRef === bookingRef)
       if (!booking) return null
 
-      const res = await safePost<any>(`${API}.update_booking_time`, {
-        booking_ref: bookingRef,
-        new_start_time: newTime,
-        new_end_time: toEndTime(newTime),
-      })
+      const newEnd = toEndTime(newTime)
+
+      let res: any
+      try {
+        res = await apiPost<any>(`${API}.update_booking_time`, {
+          booking_ref: bookingRef,
+          new_start_time: newTime,
+          new_end_time: newEnd,
+        })
+      } catch (e: any) {
+        this.error = e?.message || 'Could not move the booking.'
+        return null
+      }
       if (!res?.success) return null
 
+      this.error = ''
       booking.from = newTime
-      booking.to = toEndTime(newTime)
+      booking.to = newEnd
       const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
-      if (slot) slot.time = newTime
+      if (slot) {
+        slot.time = newTime
+        slot.endTime = newEnd
+      }
 
       return booking
     },

@@ -144,7 +144,7 @@
                 </div>
                 <div>
                   <p class="font-semibold text-gray-900">{{ selectedRoomName }}</p>
-                  <p class="text-sm text-gray-500">{{ selectedSlot?.time }} - {{ getEndTime(selectedSlot?.time || '') }}</p>
+                  <p class="text-sm text-gray-500">{{ selectedSlot?.time }} - {{ selectedSlot?.endTime || getEndTime(selectedSlot?.time || '') }}</p>
                 </div>
               </div>
             </div>
@@ -171,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { format, isToday as checkIsToday, addDays, startOfWeek } from 'date-fns'
 import { useAuthStore } from '@/stores/auth'
 import { useBookingStore } from '@/stores/booking'
@@ -183,9 +183,16 @@ interface ScheduleSlot {
   roomId: string
   date: string
   time: string
+  endTime?: string
   status: 'free' | 'booked' | 'past'
+  bookedCount: number
+  capacity: number
+  isFull: boolean
   bookedBy?: string
+  bookers?: { bookingRef: string; name: string; notes?: string }[]
+  description?: string
   bookingRef?: string
+  myBookingRef?: string
   isOwn?: boolean
 }
 
@@ -203,6 +210,18 @@ const showModal = ref(false)
 const showCancelModal = ref(false)
 const modalError = ref('')
 
+async function refreshDaySlots() {
+  await bookingStore.fetchGlobalTimeSlots()
+  const dateStr = format(bookingStore.currentScheduleDate, 'yyyy-MM-dd')
+  await Promise.all(
+    bookingStore.rooms.map(r => bookingStore.fetchRoomAvailableSlots(r.id, dateStr, dateStr))
+  )
+}
+
+function handleVisibility() {
+  if (document.visibilityState === 'visible') refreshDaySlots()
+}
+
 onMounted(async () => {
   if (bookingStore.rooms.length === 0) await bookingStore.fetchRooms()
   await bookingStore.fetchGlobalTimeSlots()
@@ -212,8 +231,15 @@ onMounted(async () => {
   const start = format(weekStart, 'yyyy-MM-dd')
   const end = format(addDays(weekStart, 60), 'yyyy-MM-dd')
   await Promise.all(
-    bookingStore.rooms.map(r => bookingStore.fetchRoomScheduleSlots(r.id, start, end))
+    bookingStore.rooms.map(r => bookingStore.fetchRoomAvailableSlots(r.id, start, end))
   )
+  window.addEventListener('focus', refreshDaySlots)
+  document.addEventListener('visibilitychange', handleVisibility)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', refreshDaySlots)
+  document.removeEventListener('visibilitychange', handleVisibility)
 })
 
 const currentDate = computed(() => bookingStore.currentScheduleDate)
@@ -230,7 +256,7 @@ async function navigateDay(direction: 'prev' | 'next') {
   bookingStore.navigateScheduleDay(direction)
   const dateStr = format(bookingStore.currentScheduleDate, 'yyyy-MM-dd')
   await Promise.all(
-    bookingStore.rooms.map(r => bookingStore.fetchRoomScheduleSlots(r.id, dateStr, dateStr))
+    bookingStore.rooms.map(r => bookingStore.fetchRoomAvailableSlots(r.id, dateStr, dateStr))
   )
 }
 
@@ -238,7 +264,7 @@ async function goToToday() {
   bookingStore.setScheduleDate(new Date())
   const dateStr = format(bookingStore.currentScheduleDate, 'yyyy-MM-dd')
   await Promise.all(
-    bookingStore.rooms.map(r => bookingStore.fetchRoomScheduleSlots(r.id, dateStr, dateStr))
+    bookingStore.rooms.map(r => bookingStore.fetchRoomAvailableSlots(r.id, dateStr, dateStr))
   )
 }
 
@@ -247,7 +273,7 @@ function getSlot(roomId: string, time: string): ScheduleSlot {
   const slot = bookingStore.getScheduleSlot(roomId, dateStr, time)
   
   if (slot) {
-    slot.isOwn = currentUser.value ? slot.bookedBy === currentUser.value.name : false
+    slot.isOwn = currentUser.value ? !!slot.myBookingRef || slot.bookedBy === currentUser.value.name : false
     return slot
   }
   
@@ -261,6 +287,9 @@ function getSlot(roomId: string, time: string): ScheduleSlot {
     date: dateStr,
     time,
     status: isPast ? 'past' : 'free',
+    bookedCount: 0,
+    capacity: 1,
+    isFull: false,
   }
 }
 

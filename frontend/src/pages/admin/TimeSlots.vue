@@ -114,7 +114,9 @@ onUnmounted(() => {
 
 const slotCounts = computed(() =>
   bookingStore.timeSlots.map(ts =>
-    bookingStore.scheduleSlots.filter(s => s.time === ts && s.status === 'booked').length
+    bookingStore.scheduleSlots
+      .filter(s => s.time === ts && (s.bookedCount ?? 0) > 0)
+      .reduce((sum, s) => sum + (s.bookedCount ?? 0), 0)
   )
 )
 
@@ -152,7 +154,9 @@ async function moveDown(i: number) {
 function confirmDelete(i: number, time: string) {
   deleteIndex.value = i
   deleteTime.value = time
-  deleteSlotCount.value = bookingStore.scheduleSlots.filter(s => s.time === time && s.status === 'booked').length
+  deleteSlotCount.value = bookingStore.scheduleSlots
+    .filter(s => s.time === time && (s.bookedCount ?? 0) > 0)
+    .reduce((sum, s) => sum + (s.bookedCount ?? 0), 0)
 }
 
 async function handleDeleteTimeSlot() {

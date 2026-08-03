@@ -62,7 +62,7 @@ const filterRoom = ref('')
 const filterUser = ref('')
 
 const allSlots = computed(() =>
-  bookingStore.scheduleSlots.filter(s => s.status === 'booked')
+  bookingStore.scheduleSlots.filter(s => (s.bookedCount ?? 0) > 0)
 )
 
 const filteredSlots = computed(() => {
@@ -101,7 +101,7 @@ onMounted(async () => {
   const start = format(new Date(), 'yyyy-MM-dd')
   const end = format(addDays(new Date(), 90), 'yyyy-MM-dd')
   for (const room of bookingStore.rooms) {
-    await bookingStore.fetchRoomScheduleSlots(room.id, start, end)
+    await bookingStore.fetchRoomAvailableSlots(room.id, start, end)
   }
 })
 </script>

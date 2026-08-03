@@ -154,6 +154,7 @@ interface ScheduleSlot {
   roomId: string
   date: string
   time: string
+  endTime?: string
   status: 'free' | 'booked' | 'past'
   bookedBy?: string
   bookingRef?: string
@@ -212,9 +213,11 @@ const formattedDate = computed(() => {
 
 const time = computed(() => {
   if (!props.slot) return ''
-  const hour = parseInt(props.slot.time.split(':')[0])
-  const endHour = (hour + 1).toString().padStart(2, '0')
-  return `${props.slot.time} - ${endHour}:00`
+  const end = props.slot.endTime || (() => {
+    const hour = parseInt(props.slot.time.split(':')[0])
+    return `${(hour + 1).toString().padStart(2, '0')}:00`
+  })()
+  return `${props.slot.time} - ${end}`
 })
 
 function setDefaultUntil() {

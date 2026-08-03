@@ -62,6 +62,6 @@ onMounted(async () => {
 })
 
 const totalBookings = computed(() =>
-  bookingStore.scheduleSlots.filter(s => s.status === 'booked').length
+  bookingStore.scheduleSlots.filter(s => (s.bookedCount ?? 0) > 0).length
 )
 </script>
