@@ -19,7 +19,9 @@ def _combine_datetime(date_val, time_val):
 def _time_of(value):
     if not value:
         return ""
-    return str(value).split(" ")[-1][:5]
+    time_str = str(value).split(" ")[-1].strip()
+    parts = time_str.split(":")
+    return f"{parts[0]}:{parts[1]}"
 
 
 def _add_hour(time_str):
