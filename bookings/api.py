@@ -557,6 +557,7 @@ def get_room_available_slots(room, start_date, end_date):
         _slot_booked_rooms,
         _room_capacity,
         _combine_datetime,
+        _available_slot_doc,
     )
 
     periods = _global_periods()
@@ -622,15 +623,6 @@ def get_room_available_slots(room, start_date, end_date):
                 "description": primary.get("notes") if primary else "",
             })
     return result
-
-
-def _available_slot_doc(room, date_str, start_hm, end_hm):
-    """Return the persisted Available Slot for a room/date/start, or None."""
-    from bookings.bookings.doctype.room_booking.room_booking import _available_slot_name
-    name = _available_slot_name(room, date_str, start_hm)
-    if name:
-        return frappe.get_doc("Available Slot", name)
-    return None
 
 
 @frappe.whitelist()

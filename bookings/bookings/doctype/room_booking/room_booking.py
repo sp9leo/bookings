@@ -58,6 +58,14 @@ def _available_slot_name(room, date, start_hm):
     )
 
 
+def _available_slot_doc(room, date_str, start_hm, end_hm=None):
+    """Return the persisted Available Slot for a room/date/start, or None."""
+    name = _available_slot_name(room, date_str, start_hm)
+    if name:
+        return frappe.get_doc("Available Slot", name)
+    return None
+
+
 def _ensure_available_slot(room, date, start_hm, end_hm=None):
     """Get (creating if needed) the Available Slot for a room/date/start-time.
 
