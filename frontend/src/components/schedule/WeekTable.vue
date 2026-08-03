@@ -193,6 +193,8 @@ function cellStyle(slot: ScheduleSlot | undefined): Record<string, string> {
 function handleClick(roomId: string, dateStr: string, time: string) {
   let slot = getSlot(roomId, dateStr, time)
   if (!slot) {
+    const slotDateTime = new Date(`${dateStr}T${time}`)
+    if (slotDateTime < new Date()) return
     slot = { id: '', roomId, date: dateStr, time, status: 'free', bookedCount: 0, capacity: 1, isFull: false } as ScheduleSlot
   }
   if (slot.status === 'past') return
