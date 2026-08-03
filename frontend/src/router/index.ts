@@ -91,9 +91,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: '/admin/rooms',
-        name: 'admin-rooms',
-        component: () => import('@/pages/admin/Rooms.vue'),
-        meta: { requiresAdmin: true }
+        redirect: '/admin/items?type=Room'
       },
       {
         path: '/admin/time-slots',

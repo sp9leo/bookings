@@ -9,7 +9,7 @@
           <p class="text-2xl font-bold text-gray-900">{{ authStore.users.length }}</p>
           <p class="text-xs text-gray-500 mt-1">Users</p>
         </RouterLink>
-        <RouterLink to="/admin/rooms" class="bg-white rounded-xl p-4 border border-gray-200 hover:shadow-md transition-shadow">
+        <RouterLink to="/admin/items?type=Room" class="bg-white rounded-xl p-4 border border-gray-200 hover:shadow-md transition-shadow">
           <p class="text-2xl font-bold text-gray-900">{{ bookingStore.rooms.length }}</p>
           <p class="text-xs text-gray-500 mt-1">Rooms</p>
         </RouterLink>
@@ -19,7 +19,7 @@
         </RouterLink>
         <RouterLink to="/admin/items" class="bg-white rounded-xl p-4 border border-gray-200 hover:shadow-md transition-shadow">
           <p class="text-2xl font-bold text-gray-900">{{ bookingStore.items.length }}</p>
-          <p class="text-xs text-gray-500 mt-1">Tutoring Items</p>
+          <p class="text-xs text-gray-500 mt-1">People</p>
         </RouterLink>
         <RouterLink to="/admin/person-slots" class="bg-white rounded-xl p-4 border border-gray-200 hover:shadow-md transition-shadow">
           <p class="text-2xl font-bold text-gray-900">{{ personSlotCount }}</p>
@@ -43,14 +43,14 @@
         <RouterLink to="/admin/users" class="bg-primary-50 text-primary-700 rounded-xl p-4 border border-primary-200 hover:shadow-md transition-shadow text-sm font-semibold text-center">
           Manage Users &rarr;
         </RouterLink>
-        <RouterLink to="/admin/rooms" class="bg-primary-50 text-primary-700 rounded-xl p-4 border border-primary-200 hover:shadow-md transition-shadow text-sm font-semibold text-center">
+        <RouterLink to="/admin/items?type=Room" class="bg-primary-50 text-primary-700 rounded-xl p-4 border border-primary-200 hover:shadow-md transition-shadow text-sm font-semibold text-center">
           Manage Rooms &rarr;
         </RouterLink>
         <RouterLink to="/admin/time-slots" class="bg-primary-50 text-primary-700 rounded-xl p-4 border border-primary-200 hover:shadow-md transition-shadow text-sm font-semibold text-center">
            Room Slots &rarr;
         </RouterLink>
         <RouterLink to="/admin/items" class="bg-primary-50 text-primary-700 rounded-xl p-4 border border-primary-200 hover:shadow-md transition-shadow text-sm font-semibold text-center">
-          Manage Items &rarr;
+          Manage People &rarr;
         </RouterLink>
         <RouterLink to="/admin/person-slots" class="bg-primary-50 text-primary-700 rounded-xl p-4 border border-primary-200 hover:shadow-md transition-shadow text-sm font-semibold text-center">
           Person Slots &rarr;
@@ -111,7 +111,7 @@ const bookingStore = useBookingStore()
 onMounted(async () => {
   authStore.fetchUsers()
   await bookingStore.fetchRooms()
-  await bookingStore.fetchItems()
+  await bookingStore.fetchItems('Person')
   await bookingStore.fetchGroups()
 
   const start = format(new Date(), 'yyyy-MM-dd')

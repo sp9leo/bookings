@@ -22,6 +22,9 @@ export interface Item {
   slotsAvailable: number
   userId: string
   groupId?: string
+  capacity?: number
+  location?: string
+  features?: string[]
 }
 
 export interface ItemGroup {
@@ -153,6 +156,11 @@ function mapItem(apiItem: any): Item {
     slotsAvailable: 0,
     userId: apiItem.user || '',
     groupId: apiItem.group || undefined,
+    capacity: apiItem.capacity || 0,
+    location: apiItem.location || '',
+    features: typeof apiItem.features === 'string' && apiItem.features.trim()
+      ? apiItem.features.split(',').map((f: string) => f.trim()).filter(Boolean)
+      : [],
   }
 }
 
@@ -809,42 +817,6 @@ export const useBookingStore = defineStore('booking', {
       this.groups = (data || []).map((g) => ({ id: g.name, name: g.group_name }))
     },
 
-    async addRoom(data?: Partial<Room>): Promise<Room | null> {
-      const itemData: Record<string, any> = {
-        item_name: data?.name,
-        item_type: 'Room',
-        capacity: data?.capacity || 0,
-        location: data?.location || '',
-        features: (data?.features || []).join(', '),
-      }
-      const res = await safePost<any>(`${API}.create_item`, { data: itemData })
-      if (!res?.name) return null
-      await this.fetchRooms()
-      return { id: res.name, name: data?.name || '', capacity: data?.capacity || 0, location: data?.location || '', features: data?.features || [] }
-    },
-
-    async updateRoom(id?: string, data?: Partial<Room>): Promise<boolean> {
-      if (!id) return false
-      const itemData: Record<string, any> = {}
-      if (data?.name !== undefined) itemData.item_name = data.name
-      if (data?.capacity !== undefined) itemData.capacity = data.capacity
-      if (data?.location !== undefined) itemData.location = data.location
-      if (data?.features !== undefined) itemData.features = (data.features || []).join(', ')
-      const res = await safePost<any>(`${API}.update_item`, { name: id, data: itemData })
-      if (!res?.success) return false
-      await this.fetchRooms()
-      return true
-    },
-
-    async removeRoom(id?: string, force?: boolean): Promise<boolean | { hasBookings: number }> {
-      if (!id) return false
-      const res = await safePost<any>(`${API}.delete_item`, { name: id, force: force ? 1 : 0 })
-      if (res?.has_bookings) return { hasBookings: res.has_bookings }
-      if (!res?.success) return false
-      this.rooms = this.rooms.filter((r) => r.id !== id)
-      return true
-    },
-
     async addItem(data?: Partial<Item>): Promise<Item | null> {
       const itemData: Record<string, any> = {
         item_name: data?.name,
@@ -853,11 +825,27 @@ export const useBookingStore = defineStore('booking', {
         class: data?.class || '',
         user: data?.userId || null,
         group: data?.groupId || null,
+        capacity: data?.capacity || 0,
+        location: data?.location || '',
+        features: (data?.features || []).join(', '),
       }
       const res = await safePost<any>(`${API}.create_item`, { data: itemData })
       if (!res?.name) return null
       await this.fetchAdminItems()
-      return { id: res.name, name: data?.name || '', subtitle: data?.subtitle || '', type: data?.type || 'Person', class: data?.class || '', slotsAvailable: 0, userId: data?.userId || '', groupId: data?.groupId }
+      if ((data?.type || 'Person') === 'Room') await this.fetchRooms()
+      return {
+        id: res.name,
+        name: data?.name || '',
+        subtitle: data?.subtitle || '',
+        type: data?.type || 'Person',
+        class: data?.class || '',
+        slotsAvailable: 0,
+        userId: data?.userId || '',
+        groupId: data?.groupId,
+        capacity: data?.capacity,
+        location: data?.location || '',
+        features: data?.features,
+      }
     },
 
     async updateItem(id?: string, data?: Partial<Item>): Promise<boolean> {
@@ -869,9 +857,13 @@ export const useBookingStore = defineStore('booking', {
       if (data?.class !== undefined) itemData.class = data.class
       if (data?.userId !== undefined) itemData.user = data.userId || null
       if (data?.groupId !== undefined) itemData.group = data.groupId || null
+      if (data?.capacity !== undefined) itemData.capacity = data.capacity
+      if (data?.location !== undefined) itemData.location = data.location
+      if (data?.features !== undefined) itemData.features = (data.features || []).join(', ')
       const res = await safePost<any>(`${API}.update_item`, { name: id, data: itemData })
       if (!res?.success) return false
       await this.fetchAdminItems()
+      if (this.items.find((i) => i.id === id)?.type === 'Room') await this.fetchRooms()
       return true
     },
 
@@ -881,6 +873,7 @@ export const useBookingStore = defineStore('booking', {
       if (res?.has_bookings) return { hasBookings: res.has_bookings }
       if (!res?.success) return false
       this.items = this.items.filter((i) => i.id !== id)
+      this.rooms = this.rooms.filter((r) => r.id !== id)
       return true
     },
 
