@@ -89,6 +89,51 @@ def get_schedule_for_room(item, start_date=None, end_date=None):
 
 
 @frappe.whitelist()
+def get_or_create_room_schedule(room):
+    """Get the schedule for a room, creating a default one if none exists."""
+    existing = frappe.db.get_value(
+        "Schedule", {"reservation_item": room, "applies_to": "Room"}, "name"
+    )
+    if not existing:
+        existing = frappe.db.get_value("Schedule", {"reservation_item": room}, "name")
+    if existing:
+        return _schedule_with_periods(existing)
+
+    schedule = frappe.get_doc({
+        "doctype": "Schedule",
+        "applies_to": "Room",
+        "reservation_item": room,
+        "schedule_periods": [
+            {
+                "period_number": idx,
+                "start_time": f"{hour:02d}:00:00",
+                "end_time": f"{hour + 1:02d}:00:00",
+                "label": f"{hour:02d}:00",
+            }
+            for idx, hour in enumerate(range(8, 17))
+        ],
+    })
+    schedule.insert(ignore_permissions=True)
+    return _schedule_with_periods(schedule.name)
+
+
+def _schedule_with_periods(name):
+    periods = frappe.get_all(
+        "Schedule Periods",
+        filters={"parent": name},
+        fields=["period_number", "start_time", "end_time", "label"],
+        order_by="period_number",
+    )
+    doc = frappe.get_doc("Schedule", name)
+    return {
+        "name": doc.name,
+        "applies_to": doc.applies_to,
+        "reservation_item": doc.reservation_item,
+        "periods": periods,
+    }
+
+
+@frappe.whitelist()
 def get_or_create_slot(schedule, slot_date, period_number):
     """Get or create a schedule slot on-demand."""
     from bookings.bookings.doctype.schedule_slot.schedule_slot import get_or_create_slot as get_create

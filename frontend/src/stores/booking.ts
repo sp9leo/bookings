@@ -513,7 +513,7 @@ export const useBookingStore = defineStore('booking', {
     },
 
     async fetchSchedules() {
-      const data = (await apiGet(`${API}.get_schedules`, { item_type: 'Room' })) as any[] | null
+      const data = (await apiGet(`${API}.get_schedules`)) as any[] | null
       this.schedules = (data || []).map((s) => ({
         name: s.name,
         applies_to: s.applies_to,
@@ -651,8 +651,24 @@ export const useBookingStore = defineStore('booking', {
       return mapped
     },
 
+    async ensureRoomSchedule(roomId: string): Promise<Schedule | null> {
+      const existing = this.getScheduleForRoom(roomId)
+      if (existing) return existing
+      const s = await apiGet<any>(`${API}.get_or_create_room_schedule`, { room: roomId })
+      if (!s || typeof s.name !== 'string') return null
+      const mapped: Schedule = {
+        name: s.name,
+        applies_to: s.applies_to,
+        reservation_item: s.reservation_item,
+        periods: s.periods || [],
+      }
+      this.schedules = [...this.schedules.filter((x) => x.reservation_item !== roomId), mapped]
+      return mapped
+    },
+
     async bookRoomBooking(roomId: string, date: string, time: string, description: string): Promise<RoomBooking | null> {
-      const schedule = this.getScheduleForRoom(roomId)
+      let schedule = this.getScheduleForRoom(roomId)
+      if (!schedule) schedule = await this.ensureRoomSchedule(roomId)
       if (!schedule) {
         this.error = 'No schedule is set up for this room.'
         return null
@@ -722,7 +738,8 @@ export const useBookingStore = defineStore('booking', {
       recurrence: RecurrenceConfig,
       _bookedBy?: { name: string; email: string }
     ): Promise<string | null> {
-      const schedule = this.getScheduleForRoom(roomId)
+      let schedule = this.getScheduleForRoom(roomId)
+      if (!schedule) schedule = await this.ensureRoomSchedule(roomId)
       if (!schedule) {
         this.error = 'No schedule is set up for this room.'
         return null
