@@ -638,7 +638,7 @@ def book_room_slot(room, date, start_time, end_time, notes=None,
                    customer_name=None, customer_email=None):
     """Book one seat on a room's Available Slot (capacity-aware, atomic)."""
     from bookings.bookings.doctype.room_booking.room_booking import (
-        _ensure_available_slot,
+        _available_slot_doc,
         _increment_available_slot,
         _combine_datetime,
         generate_booking_ref,
@@ -655,7 +655,13 @@ def book_room_slot(room, date, start_time, end_time, notes=None,
     if not start_hm:
         frappe.throw("A start time is required")
 
-    slot_doc = _ensure_available_slot(room, date, start_hm, end_hm)
+    slot_doc = _available_slot_doc(room, date, start_hm, end_hm)
+    if not slot_doc:
+        frappe.throw(
+            f"No availability is defined for {start_hm} on {date}. "
+            "Please contact an administrator to create an availability block."
+        )
+
     _increment_available_slot(
         slot_doc.name,
         f"This room is fully booked at {start_hm} on {date}",

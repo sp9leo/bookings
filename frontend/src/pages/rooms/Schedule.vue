@@ -271,22 +271,18 @@ async function goToToday() {
 function getSlot(roomId: string, time: string): ScheduleSlot {
   const dateStr = format(currentDate.value, 'yyyy-MM-dd')
   const slot = bookingStore.getScheduleSlot(roomId, dateStr, time)
-  
+
   if (slot) {
     slot.isOwn = currentUser.value ? !!slot.myBookingRef || slot.bookedBy === currentUser.value.name : false
     return slot
   }
-  
-  const slotDateTime = new Date(`${dateStr}T${time}`)
-  const now = new Date()
-  const isPast = slotDateTime < now
-  
+
   return {
-    id: `new-${roomId}-${dateStr}-${time}`,
+    id: '',
     roomId,
     date: dateStr,
     time,
-    status: isPast ? 'past' : 'free',
+    status: 'past',
     bookedCount: 0,
     capacity: 1,
     isFull: false,
@@ -294,6 +290,7 @@ function getSlot(roomId: string, time: string): ScheduleSlot {
 }
 
 function handleSlotClick(slot: ScheduleSlot) {
+  if (!slot.id) return
   selectedSlot.value = slot
   modalError.value = ''
   const room = bookingStore.getRoomById(slot.roomId)

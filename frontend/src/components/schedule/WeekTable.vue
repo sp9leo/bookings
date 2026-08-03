@@ -158,10 +158,10 @@ function isOwn(slot: ScheduleSlot | undefined): boolean {
 }
 
 function cellClasses(slot: ScheduleSlot | undefined): Record<string, boolean> {
-  if (!slot) return { 'bg-emerald-20 hover:bg-emerald-100 text-emerald-600': true }
+  if (!slot) return { 'bg-gray-100 cursor-not-allowed': true }
   const owned = isOwn(slot)
   return {
-    'bg-emerald-20 hover:bg-emerald-100 text-emerald-600': slot.status === 'free',
+    'bg-emerald-20 hover:bg-emerald-100 text-emerald-600 cursor-pointer': slot.status === 'free',
     'hover:brightness-95 text-black-600': slot.status === 'booked' && owned,
     'text-gray-400 cursor-not-allowed': slot.status === 'booked' && !owned && !authStore.isAdmin,
     'bg-gray-50 text-gray-300 cursor-not-allowed': slot.status === 'past',
@@ -191,10 +191,8 @@ function cellStyle(slot: ScheduleSlot | undefined): Record<string, string> {
 }
 
 function handleClick(roomId: string, dateStr: string, time: string) {
-  let slot = getSlot(roomId, dateStr, time)
-  if (!slot) {
-    slot = { id: '', roomId, date: dateStr, time, status: 'free', bookedCount: 0, capacity: 1, isFull: false } as ScheduleSlot
-  }
+  const slot = getSlot(roomId, dateStr, time)
+  if (!slot) return
   if (slot.status === 'past') return
   if (slot.status === 'booked' && !isOwn(slot) && !authStore.isAdmin) return
   emit('slotClick', slot)
