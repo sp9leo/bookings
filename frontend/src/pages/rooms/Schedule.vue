@@ -227,14 +227,13 @@ onMounted(async () => {
   await bookingStore.fetchGlobalTimeSlots()
   await bookingStore.fetchSchedules()
   authStore.fetchUsers()
+  await bookingStore.refreshRoomBookings()
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
   const start = format(weekStart, 'yyyy-MM-dd')
   const end = format(addDays(weekStart, 60), 'yyyy-MM-dd')
   await Promise.all(
     bookingStore.rooms.map(r => bookingStore.fetchRoomAvailableSlots(r.id, start, end))
   )
-  window.addEventListener('focus', refreshDaySlots)
-  document.addEventListener('visibilitychange', handleVisibility)
 })
 
 onUnmounted(() => {
