@@ -439,6 +439,20 @@ def get_all_reservations():
 
 
 @frappe.whitelist()
+def get_all_room_bookings():
+    """Get all room bookings (admin)."""
+    _require_admin()
+    return frappe.get_all(
+        "Room Booking",
+        filters={"status": ["!=", "Cancelled"]},
+        fields=["name", "booking_ref", "schedule_slot", "available_slot", "reservation_item",
+                "customer_name", "customer_email", "booking_date", "from_time", "to_time",
+                "status", "notes"],
+        order_by="booking_date desc",
+    )
+
+
+@frappe.whitelist()
 def get_current_user():
     """Get the current logged-in user info (or Guest)."""
     user = frappe.session.user

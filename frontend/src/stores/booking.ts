@@ -553,20 +553,37 @@ export const useBookingStore = defineStore('booking', {
       this.roomBookings = (data || []).map((b) => mapRoomBooking(b, roomNames))
     },
 
+    async fetchAllRoomBookings() {
+      if (this.rooms.length === 0) await this.fetchRooms()
+      const roomNames = new Map(this.rooms.map((r) => [r.id, r.name]))
+      const data = (await apiGet(`${API}.get_all_room_bookings`)) as any[] | null
+      if (!Array.isArray(data)) return
+      this.roomBookings = (data || []).map((b) => mapRoomBooking(b, roomNames))
+    },
+
+    async refreshRoomBookings() {
+      const authStore = useAuthStore()
+      if (authStore.isAdmin) {
+        await this.fetchAllRoomBookings()
+      } else {
+        await this.fetchMyRoomBookings()
+      }
+    },
+
     async fetchMyBookings() {
       const authStore = useAuthStore()
       if (authStore.isAdmin) {
         await Promise.all([
           this.fetchAllReservations(),
           this.fetchRooms(),
-          this.fetchMyRoomBookings(),
+          this.refreshRoomBookings(),
         ])
       } else {
         await Promise.all([
           this.fetchMySessionReservations(),
           this.fetchMyTutorBookings(),
           this.fetchRooms(),
-          this.fetchMyRoomBookings(),
+          this.refreshRoomBookings(),
         ])
       }
     },
@@ -706,7 +723,7 @@ export const useBookingStore = defineStore('booking', {
 
       this.error = ''
       await this.fetchRoomAvailableSlots(roomId, date, date)
-      await this.fetchMyRoomBookings()
+      await this.refreshRoomBookings()
       await this.fetchSlots(roomId)
 
       const room = this.getRoomById(roomId)
@@ -803,11 +820,11 @@ export const useBookingStore = defineStore('booking', {
       }
       if (!res?.success) return null
 
-      this.error = ''
-      await this.fetchRoomAvailableSlots(roomId, date, date)
-      await this.fetchMyRoomBookings()
+       this.error = ''
+       await this.fetchRoomAvailableSlots(roomId, date, date)
+       await this.refreshRoomBookings()
 
-      const created = res.created || []
+       const created = res.created || []
       return created.length > 0 ? created[0].booking_ref : null
     },
 
