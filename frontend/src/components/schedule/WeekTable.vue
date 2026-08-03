@@ -47,9 +47,9 @@
                 <template v-if="!getSlot(room.id, day.dateStr, ts) || getSlot(room.id, day.dateStr, ts)?.status === 'free'">
                   <span class="text-[10px] leading-none"></span>
                 </template>
-                <template v-else-if="getSlot(room.id, day.dateStr, ts)?.status === 'past'">
-                  <span class="text-[10px] leading-none">—</span>
-                </template>
+<template v-else-if="getSlot(room.id, day.dateStr, ts)?.status === 'past' && !getSlot(room.id, day.dateStr, ts)?.bookingRef">
+  <span class="text-[10px] leading-none">—</span>
+</template>
                 <template v-else>
                   <div class="text-[12px] leading-tight font-medium truncate flex items-center gap-0.5">
                     {{ shortName(getSlot(room.id, day.dateStr, ts)?.bookedBy || '') }}
@@ -164,7 +164,7 @@ function cellClasses(slot: ScheduleSlot | undefined): Record<string, boolean> {
     'bg-emerald-20 hover:bg-emerald-100 text-emerald-600 cursor-pointer': slot.status === 'free',
     'hover:brightness-95 text-black-600': slot.status === 'booked' && owned,
     'text-gray-400 cursor-not-allowed': slot.status === 'booked' && !owned && !authStore.isAdmin,
-    'bg-gray-50 text-gray-300 cursor-not-allowed': slot.status === 'past',
+    'bg-gray-50 text-gray-300 cursor-not-allowed opacity-40': slot.status === 'past', 
   }
 }
 
