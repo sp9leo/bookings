@@ -392,6 +392,20 @@ export const useBookingStore = defineStore('booking', {
         } as ScheduleSlot
       }
 
+      const slotDateTime = new Date(`${date}T${time}`)
+      if (slotDateTime < new Date()) {
+        return {
+          id: '',
+          roomId,
+          date,
+          time,
+          status: 'past',
+          bookedCount: 0,
+          capacity: 1,
+          isFull: false,
+        } as ScheduleSlot
+      }
+
       return undefined
     },
 
