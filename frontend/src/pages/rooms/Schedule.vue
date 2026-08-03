@@ -205,6 +205,7 @@ const modalError = ref('')
 
 onMounted(async () => {
   if (bookingStore.rooms.length === 0) await bookingStore.fetchRooms()
+  await bookingStore.fetchGlobalTimeSlots()
   await bookingStore.fetchSchedules()
   authStore.fetchUsers()
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })

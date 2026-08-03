@@ -113,6 +113,7 @@ onMounted(async () => {
   await bookingStore.fetchRooms()
   await bookingStore.fetchItems('Person')
   await bookingStore.fetchGroups()
+  await bookingStore.fetchGlobalTimeSlots()
 
   const start = format(new Date(), 'yyyy-MM-dd')
   const end = format(addDays(new Date(), 90), 'yyyy-MM-dd')

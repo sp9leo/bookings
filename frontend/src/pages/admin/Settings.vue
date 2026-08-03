@@ -56,8 +56,9 @@ import { useBookingStore } from '@/stores/booking'
 const authStore = useAuthStore()
 const bookingStore = useBookingStore()
 
-onMounted(() => {
+onMounted(async () => {
   authStore.fetchUsers()
+  await bookingStore.fetchGlobalTimeSlots()
 })
 
 const totalBookings = computed(() =>

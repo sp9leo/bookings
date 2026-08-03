@@ -308,6 +308,7 @@ const bookingStore = useBookingStore()
 const authStore = useAuthStore()
 
 onMounted(async () => {
+  await bookingStore.fetchGlobalTimeSlots()
   await bookingStore.fetchSchedules()
   await bookingStore.fetchMyBookings()
   await refreshScheduleSlots()

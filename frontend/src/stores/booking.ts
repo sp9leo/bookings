@@ -291,14 +291,7 @@ export const useBookingStore = defineStore('booking', {
 
     getRoomSlotsForDate: (state) => (roomId: string, date: string | null) => {
       if (!date) return []
-      const schedule = state.schedules.find(
-        (s) => s.reservation_item === roomId && (s.applies_to === 'Room' || !s.applies_to)
-      )
-      const periodTimes = (schedule?.periods || [])
-        .map((p) => timeOf(p.start_time))
-        .filter(Boolean)
-      const times = periodTimes.length ? periodTimes : state.timeSlots
-      return times.map((time) => {
+      return state.timeSlots.map((time) => {
         const scheduleSlot = state.scheduleSlots.find(
           (s) => s.roomId === roomId && s.date === date && s.time === time
         )
@@ -520,6 +513,26 @@ export const useBookingStore = defineStore('booking', {
         reservation_item: s.reservation_item,
         periods: s.periods || [],
       }))
+    },
+
+    async fetchGlobalTimeSlots() {
+      const data = await apiGet<any>(`${API}.get_global_time_slots`)
+      if (!data || !Array.isArray(data.slots)) return
+      this.timeSlots = data.slots
+        .map((s: any) => timeOf(s.start_time))
+        .filter(Boolean)
+    },
+
+    async saveGlobalTimeSlots(times: string[]): Promise<boolean> {
+      try {
+        await apiPost<any>(`${API}.save_global_time_slots`, { slots: JSON.stringify(times) })
+      } catch (e: any) {
+        this.error = e?.message || 'Could not save time slots.'
+        return false
+      }
+      this.error = ''
+      this.timeSlots = [...times]
+      return true
     },
 
     async fetchRoomScheduleSlots(roomId: string, startDate?: string, endDate?: string) {

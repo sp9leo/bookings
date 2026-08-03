@@ -5,9 +5,12 @@
       <button @click="showAddInput = !showAddInput" class="px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-lg hover:bg-primary-600 transition-colors">Add Time Slot</button>
     </div>
 
-    <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm mb-6">
-      Time slot changes apply locally in this browser only; they are not persisted to the backend yet.
+    <div class="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-4 py-3 text-sm mb-4">
+      Time slots are shared across all rooms and saved to the backend. Changes apply to the day/week views and the room calendar.
     </div>
+
+    <div v-if="saveError" class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-4">{{ saveError }}</div>
+    <div v-if="saveMessage" class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm mb-4">{{ saveMessage }}</div>
 
     <div v-if="showAddInput" class="bg-white rounded-xl border border-gray-200 p-4 mb-4 flex items-center gap-3">
       <input v-model="newTime" type="time" class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
@@ -62,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useBookingStore } from '@/stores/booking'
 
 const bookingStore = useBookingStore()
@@ -74,25 +77,48 @@ const deleteIndex = ref<number | null>(null)
 const deleteTime = ref('')
 const deleteSlotCount = ref(0)
 
+const saveError = ref('')
+const saveMessage = ref('')
+
+onMounted(async () => {
+  await bookingStore.fetchGlobalTimeSlots()
+})
+
 const slotCounts = computed(() =>
   bookingStore.timeSlots.map(ts =>
     bookingStore.scheduleSlots.filter(s => s.time === ts && s.status === 'booked').length
   )
 )
 
-function handleAdd() {
+async function persist() {
+  saveError.value = ''
+  saveMessage.value = ''
+  const ok = await bookingStore.saveGlobalTimeSlots([...bookingStore.timeSlots])
+  if (!ok) {
+    saveError.value = bookingStore.error || 'Could not save changes. Please try again.'
+    return
+  }
+  saveMessage.value = 'Changes saved.'
+  setTimeout(() => {
+    if (saveMessage.value === 'Changes saved.') saveMessage.value = ''
+  }, 2500)
+}
+
+async function handleAdd() {
   if (!newTime.value) return
-  bookingStore.addTimeSlot(newTime.value)
+  if (bookingStore.addTimeSlot(newTime.value)) {
+    await persist()
+  }
   newTime.value = ''
   showAddInput.value = false
 }
 
-function moveUp(i: number) {
-  bookingStore.reorderTimeSlot(i, i - 1)
+async function moveUp(i: number) {
+  if (bookingStore.reorderTimeSlot(i, i - 1)) await persist()
 }
 
-function moveDown(i: number) {
-  bookingStore.reorderTimeSlot(i, i + 1)
+async function moveDown(i: number) {
+  if (bookingStore.reorderTimeSlot(i, i + 1)) await persist()
 }
 
 function confirmDelete(i: number, time: string) {
@@ -101,10 +127,11 @@ function confirmDelete(i: number, time: string) {
   deleteSlotCount.value = bookingStore.scheduleSlots.filter(s => s.time === time && s.status === 'booked').length
 }
 
-function handleDeleteTimeSlot() {
+async function handleDeleteTimeSlot() {
   if (deleteIndex.value === null) return
   bookingStore.removeTimeSlot(deleteIndex.value)
   deleteIndex.value = null
+  await persist()
 }
 </script>
 

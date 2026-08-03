@@ -99,7 +99,7 @@ def get_or_create_room_schedule(room):
     if existing:
         doc = frappe.get_doc("Schedule", existing)
         if len(doc.schedule_periods) == 0:
-            for period in _default_periods():
+            for period in _global_periods():
                 doc.append("schedule_periods", {**period, "doctype": "Schedule Periods"})
             doc.save(ignore_permissions=True)
         return _schedule_with_periods(doc)
@@ -110,23 +110,67 @@ def get_or_create_room_schedule(room):
         "reservation_item": room,
         "schedule_periods": [
             {"doctype": "Schedule Periods", **period}
-            for period in _default_periods()
+            for period in _global_periods()
         ],
     })
     schedule.insert(ignore_permissions=True)
     return _schedule_with_periods(schedule)
 
 
+_DEFAULT_GLOBAL_TIMES = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]
+
+
+def _add_hour(time_str):
+    hour, minute = (time_str or "00:00").split(":")
+    return f"{int(hour) + 1:02d}:{minute}"
+
+
+def _time_of(value):
+    if not value:
+        return ""
+    return str(value).split(" ")[-1][:5]
+
+
+def _times_to_periods(times):
+    """Build Schedule Periods rows from an ordered list of 'HH:MM' start times."""
+    periods = []
+    for idx, start in enumerate(times):
+        start = (start or "").strip()
+        if not start:
+            continue
+        start = _time_of(start) or start
+        periods.append({
+            "period_number": idx,
+            "start_time": f"{start}:00",
+            "end_time": f"{_add_hour(start)}:00",
+            "label": start,
+        })
+    return periods
+
+
 def _default_periods():
+    return _times_to_periods(_DEFAULT_GLOBAL_TIMES)
+
+
+def _global_periods():
+    """Return the current global time-slot periods, falling back to defaults."""
+    name = frappe.db.get_value(
+        "Schedule",
+        {"applies_to": "Room", "reservation_item": ("is", "not set")},
+        "name",
+    )
+    if not name:
+        return _default_periods()
+    doc = frappe.get_doc("Schedule", name)
     return [
         {
-            "period_number": idx,
-            "start_time": f"{hour:02d}:00:00",
-            "end_time": f"{hour + 1:02d}:00:00",
-            "label": f"{hour:02d}:00",
+            "period_number": p.period_number,
+            "start_time": p.start_time,
+            "end_time": p.end_time,
+            "label": p.label,
         }
-        for idx, hour in enumerate(range(8, 17))
-    ]
+        for p in doc.schedule_periods
+    ] or _default_periods()
 
 
 def _schedule_with_periods(schedule):
@@ -147,6 +191,132 @@ def _schedule_with_periods(schedule):
         "reservation_item": schedule.reservation_item,
         "periods": periods,
     }
+
+
+def _global_schedule_name():
+    name = frappe.db.get_value(
+        "Schedule",
+        {"applies_to": "Room", "reservation_item": ("is", "not set")},
+        "name",
+    )
+    if name:
+        return name
+
+    schedule = frappe.get_doc({
+        "doctype": "Schedule",
+        "applies_to": "Room",
+        "reservation_item": None,
+        "schedule_periods": [
+            {"doctype": "Schedule Periods", **period}
+            for period in _default_periods()
+        ],
+    })
+    schedule.insert(ignore_permissions=True)
+    return schedule.name
+
+
+def _periods_match(existing, target):
+    if len(existing) != len(target):
+        return False
+    for existing_period, target_period in zip(existing, target):
+        if _time_of(existing_period.start_time) != _time_of(target_period["start_time"]):
+            return False
+    return True
+
+
+def _sync_room_schedules():
+    """Rewrite every room schedule's periods to match the global list."""
+    global_name = _global_schedule_name()
+    global_doc = frappe.get_doc("Schedule", global_name)
+    periods = [
+        {"doctype": "Schedule Periods", **{
+            "period_number": p.period_number,
+            "start_time": p.start_time,
+            "end_time": p.end_time,
+            "label": p.label,
+        }}
+        for p in global_doc.schedule_periods
+    ]
+    room_schedules = frappe.get_all(
+        "Schedule",
+        filters={"applies_to": "Room", "reservation_item": ("is", "set")},
+        fields=["name"],
+    )
+    for row in room_schedules:
+        doc = frappe.get_doc("Schedule", row.name)
+        if _periods_match(doc.schedule_periods, periods):
+            continue
+        doc.schedule_periods = [dict(p) for p in periods]
+        doc.save(ignore_permissions=True)
+
+
+def _cancel_bookings_for_removed_times(times):
+    """Cancel active room bookings whose slot time was removed from the list."""
+    if not times:
+        return
+    from bookings.bookings.doctype.room_booking.room_booking import cancel_room_booking
+    slots = frappe.get_all(
+        "Schedule Slot",
+        filters={"status": "Booked"},
+        fields=["name", "start_time", "booking_ref"],
+    )
+    for slot in slots:
+        if _time_of(slot.get("start_time")) not in times:
+            continue
+        if not slot.get("booking_ref"):
+            continue
+        try:
+            cancel_room_booking(slot["booking_ref"])
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "cancel booking for removed time slot")
+
+
+@frappe.whitelist()
+def get_global_time_slots():
+    """Get the global room time-slot list (single source of truth for room views)."""
+    name = _global_schedule_name()
+    _sync_room_schedules()
+    doc = frappe.get_doc("Schedule", name)
+    return {
+        "schedule": name,
+        "slots": [
+            {
+                "period_number": p.period_number,
+                "start_time": p.start_time,
+                "end_time": p.end_time,
+                "label": p.label,
+            }
+            for p in doc.schedule_periods
+        ],
+    }
+
+
+@frappe.whitelist()
+def save_global_time_slots(slots):
+    """Replace the global room time-slot list and sync all room schedules."""
+    _require_admin()
+    periods = _times_to_periods(_coerce_list(slots))
+    if not periods:
+        frappe.throw("At least one time slot is required")
+
+    name = _global_schedule_name()
+    doc = frappe.get_doc("Schedule", name)
+    removed_times = {
+        _time_of(p.start_time)
+        for p in doc.schedule_periods
+    } - {p["label"] for p in periods}
+
+    doc.schedule_periods = [
+        {"doctype": "Schedule Periods", **period}
+        for period in periods
+    ]
+    doc.save(ignore_permissions=True)
+
+    _cancel_bookings_for_removed_times(removed_times)
+    _sync_room_schedules()
+    frappe.db.commit()
+
+    return {"success": True, "schedule": name, "slots": periods}
 
 
 @frappe.whitelist()
