@@ -191,16 +191,30 @@ def get_my_bookings(user=None):
     """Get all bookings for the current user or specified user."""
     if not user:
         user = frappe.session.user
-    
+
+    user_email = frappe.db.get_value("User", user, "email") or user
+
     bookings = frappe.get_all(
         "Room Booking",
-        filters={"customer_email": user},
+        filters={"customer_email": ["in", [user, user_email]]},
         fields=["name", "booking_ref", "schedule_slot", "available_slot", "reservation_item",
-                "customer_name", "customer_email", "booking_date", "from_time", "to_time", 
+                "customer_name", "customer_email", "booking_date", "from_time", "to_time",
                 "status", "notes"],
         order_by="booking_date desc"
     )
     return bookings
+
+
+@frappe.whitelist()
+def lookup_room_booking(email, booking_ref):
+    """Lookup a room booking by email and booking reference."""
+    return frappe.get_all(
+        "Room Booking",
+        filters={"customer_email": email, "booking_ref": booking_ref},
+        fields=["name", "booking_ref", "schedule_slot", "available_slot", "reservation_item",
+                "customer_name", "customer_email", "booking_date", "from_time", "to_time",
+                "status", "notes"],
+    )
 
 
 @frappe.whitelist()

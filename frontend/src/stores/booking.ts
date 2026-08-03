@@ -354,10 +354,6 @@ export const useBookingStore = defineStore('booking', {
       )
     },
 
-    getRoomBookingsByEmail: (state) => (email: string) => {
-      return state.roomBookings.filter((b) => b.userEmail.toLowerCase() === email.toLowerCase())
-    },
-
     getScheduleSlotsForDate: (state) => (date: string) => {
       return state.scheduleSlots.filter((slot) => slot.date === date)
     },
@@ -369,49 +365,7 @@ export const useBookingStore = defineStore('booking', {
     },
 
     getUserBookings: (state) => {
-      const authStore = useAuthStore()
-      const user = authStore.currentUser
-      if (!user) return []
-
-      return state.roomBookings.filter(
-        (b) => b.userEmail.toLowerCase() === user.email.toLowerCase()
-      )
-    },
-
-    getUserUpcomingBookings: (state) => {
-      const authStore = useAuthStore()
-      const email = authStore.currentUser?.email || ''
-      const now = new Date()
-      now.setHours(0, 0, 0, 0)
       return state.roomBookings
-        .filter((b) => b.userEmail.toLowerCase() === email.toLowerCase())
-        .filter((b) => {
-          const bookingDate = new Date(`${b.date}T${b.from}`)
-          return bookingDate >= now && b.status === 'Confirmed'
-        })
-        .sort((a, b) => {
-          const dateA = new Date(`${a.date}T${a.from}`)
-          const dateB = new Date(`${b.date}T${b.from}`)
-          return dateA.getTime() - dateB.getTime()
-        })
-    },
-
-    getUserPastBookings: (state) => {
-      const authStore = useAuthStore()
-      const email = authStore.currentUser?.email || ''
-      const now = new Date()
-      now.setHours(0, 0, 0, 0)
-      return state.roomBookings
-        .filter((b) => b.userEmail.toLowerCase() === email.toLowerCase())
-        .filter((b) => {
-          const bookingDate = new Date(`${b.date}T${b.from}`)
-          return bookingDate < now
-        })
-        .sort((a, b) => {
-          const dateA = new Date(`${a.date}T${a.from}`)
-          const dateB = new Date(`${b.date}T${b.from}`)
-          return dateB.getTime() - dateA.getTime()
-        })
     },
 
     getUserAsTutorReservations: (state) => {
@@ -615,6 +569,17 @@ export const useBookingStore = defineStore('booking', {
           this.fetchMyRoomBookings(),
         ])
       }
+    },
+
+    async lookupRoomBooking(email: string, ref: string): Promise<RoomBooking | null> {
+      if (this.rooms.length === 0) await this.fetchRooms()
+      const roomNames = new Map(this.rooms.map((r) => [r.id, r.name]))
+      const data = (await apiGet<any[]>(`${API}.lookup_room_booking`, {
+        email,
+        booking_ref: ref,
+      })) as any[] | null
+      if (!data || !Array.isArray(data) || data.length === 0) return null
+      return mapRoomBooking(data[0], roomNames)
     },
 
     async createReservation(

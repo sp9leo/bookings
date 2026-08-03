@@ -188,9 +188,11 @@ async function lookupBookings() {
 
   searching.value = true
 
-  await bookingStore.fetchMyRoomBookings()
-  const allBookings = bookingStore.getRoomBookingsByEmail(email.value)
-  bookings.value = allBookings.filter(b => b.bookingRef.toUpperCase() === bookingRef.value.trim().toUpperCase())
+  const booking = await bookingStore.lookupRoomBooking(
+    email.value.trim(),
+    bookingRef.value.trim().toUpperCase()
+  )
+  bookings.value = booking ? [booking] : []
 
   submitted.value = true
   searching.value = false

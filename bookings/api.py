@@ -382,6 +382,13 @@ def get_my_room_bookings():
     return get_my_bookings()
 
 
+@frappe.whitelist(allow_guest=True)
+def lookup_room_booking(email, booking_ref):
+    """Lookup a room booking by email and reference."""
+    from bookings.bookings.doctype.room_booking.room_booking import lookup_room_booking as lookup
+    return lookup(email, booking_ref)
+
+
 @frappe.whitelist()
 def get_my_session_reservations():
     """Get current user's session reservations."""
