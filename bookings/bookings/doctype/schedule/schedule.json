@@ -29,7 +29,7 @@
     "fieldname": "schedule_periods",
     "fieldtype": "Table",
     "label": "Time Periods",
-    "options": "Schedule periods"
+    "options": "Schedule Periods"
    }
  ],
  "grid_page_length": 50,

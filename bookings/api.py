@@ -100,7 +100,7 @@ def get_or_create_room_schedule(room):
         doc = frappe.get_doc("Schedule", existing)
         if len(doc.schedule_periods) == 0:
             for period in _default_periods():
-                doc.append("schedule_periods", {**period, "doctype": "Schedule periods"})
+                doc.append("schedule_periods", {**period, "doctype": "Schedule Periods"})
             doc.save(ignore_permissions=True)
         return _schedule_with_periods(doc)
 
@@ -109,7 +109,7 @@ def get_or_create_room_schedule(room):
         "applies_to": "Room",
         "reservation_item": room,
         "schedule_periods": [
-            {"doctype": "Schedule periods", **period}
+            {"doctype": "Schedule Periods", **period}
             for period in _default_periods()
         ],
     })

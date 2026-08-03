@@ -26,8 +26,8 @@
    "name": "Schedule"
   },
   {
-   "doctype": "Schedule periods",
-   "name": "Schedule periods"
+   "doctype": "Schedule Periods",
+   "name": "Schedule Periods"
   },
   {
    "doctype": "Schedule Slot",
