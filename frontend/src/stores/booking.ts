@@ -373,13 +373,15 @@ export const useBookingStore = defineStore('booking', {
           ? booking.userEmail === authStore.currentUser.email ||
             booking.userName === authStore.currentUser.name
           : false
+        const slotDateTime = new Date(`${date}T${time}`)
+        const isPast = slotDateTime < new Date()
         return {
           id: booking.bookingRef,
           roomId: booking.roomId,
           date: booking.date,
           time: booking.from,
           endTime: booking.to,
-          status: 'booked' as const,
+          status: isPast ? 'past' : 'booked',
           bookedCount: 1,
           capacity: 1,
           isFull: true,
