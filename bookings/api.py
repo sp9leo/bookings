@@ -697,31 +697,10 @@ def book_room_slot(room, date, start_time, end_time, notes=None,
         "booking_ref": booking.booking_ref,
     }
 
-    booking = frappe.get_doc({
-        "doctype": "Room Booking",
-        "available_slot": slot_doc.name,
-        "reservation_item": room,
-        "customer_name": customer_name,
-        "customer_email": customer_email,
-        "booking_date": date,
-        "from_time": _combine_datetime(date, start_hm),
-        "to_time": _combine_datetime(date, end_hm),
-        "notes": notes,
-        "status": "Confirmed",
-        "booking_ref": generate_booking_ref(),
-    })
-    booking.insert(ignore_permissions=True)
-
-    return {
-        "name": booking.name,
-        "booking_ref": booking.booking_ref,
-        "available_slot": slot_doc.name,
-    }
-
 
 @frappe.whitelist()
 def book_room_recurring(room, dates, start_time, end_time, notes=None,
-                        customer_name=None, customer_email=None):
+                          customer_name=None, customer_email=None):
     """Create room bookings across multiple dates for the same time."""
     import json
 
