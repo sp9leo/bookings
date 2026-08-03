@@ -21,7 +21,7 @@ def _time_of(value):
         return ""
     time_str = str(value).split(" ")[-1].strip()
     parts = time_str.split(":")
-    return f"{parts[0]}:{parts[1]}"
+    return f"{int(parts[0]):02d}:{parts[1]}"
 
 
 def _add_hour(time_str):
