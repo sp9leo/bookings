@@ -224,6 +224,13 @@ def _periods_match(existing, target):
     return True
 
 
+def _replace_schedule_periods(doc, periods):
+    """Replace a Schedule's child periods using Document rows (dicts alone break save)."""
+    doc.schedule_periods = []
+    for period in periods:
+        doc.append("schedule_periods", {**period, "doctype": "Schedule Periods"})
+
+
 def _sync_room_schedules():
     """Rewrite every room schedule's periods to match the global list."""
     global_name = _global_schedule_name()
@@ -246,7 +253,7 @@ def _sync_room_schedules():
         doc = frappe.get_doc("Schedule", row.name)
         if _periods_match(doc.schedule_periods, periods):
             continue
-        doc.schedule_periods = [dict(p) for p in periods]
+        _replace_schedule_periods(doc, periods)
         doc.save(ignore_permissions=True)
 
 
@@ -306,10 +313,7 @@ def save_global_time_slots(slots):
         for p in doc.schedule_periods
     } - {p["label"] for p in periods}
 
-    doc.schedule_periods = [
-        {"doctype": "Schedule Periods", **period}
-        for period in periods
-    ]
+    _replace_schedule_periods(doc, periods)
     doc.save(ignore_permissions=True)
 
     _cancel_bookings_for_removed_times(removed_times)
