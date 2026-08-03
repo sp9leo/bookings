@@ -64,27 +64,21 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { format, addDays, startOfDay } from 'date-fns'
 import { useBookingStore } from '@/stores/booking'
 
 const bookingStore = useBookingStore()
 
 const rooms = computed(() => bookingStore.rooms.map(room => ({
   ...room,
-  slotsAvailable: bookingStore.getAvailableRoomSlotsCount(room.id)
+  slotsAvailable: bookingStore.getAvailableSlotsCount(room.id)
 })))
 
 const pending = ref(true)
 
 onMounted(async () => {
   await bookingStore.fetchRooms()
-  await bookingStore.fetchSchedules()
-  const today = startOfDay(new Date())
-  const end = addDays(today, 7)
   await Promise.all(
-    bookingStore.rooms.map(r =>
-      bookingStore.fetchRoomAvailableSlots(r.id, format(today, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'))
-    )
+    bookingStore.rooms.map(r => bookingStore.fetchSlots(r.id))
   )
   pending.value = false
 })

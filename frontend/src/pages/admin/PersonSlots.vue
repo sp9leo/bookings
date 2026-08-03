@@ -31,7 +31,7 @@
       <!-- Block form -->
       <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
         <h2 class="text-sm font-semibold text-gray-700 mb-4">Add Availability Block</h2>
-        <div class="grid grid-cols-5 gap-3 items-end">
+        <div class="grid grid-cols-6 gap-3 items-end">
           <div>
             <label class="block text-xs font-medium text-gray-500 mb-1">Date</label>
             <input type="date" v-model="blockDate" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
@@ -54,6 +54,10 @@
               <option :value="30">30 min</option>
               <option :value="60">60 min</option>
             </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Capacity</label>
+            <input type="number" v-model.number="blockCapacity" min="1" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
           <button @click="addBlock" :disabled="!canAddBlock" class="px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-lg hover:bg-primary-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
             Add Block
@@ -112,6 +116,7 @@
                   <thead>
                     <tr class="bg-gray-50 text-left">
                       <th class="px-4 py-2.5 font-semibold text-gray-600">Time</th>
+                      <th class="px-4 py-2.5 font-semibold text-gray-600">Capacity</th>
                       <th class="px-4 py-2.5 font-semibold text-gray-600">Status</th>
                       <th class="px-4 py-2.5 font-semibold text-gray-600 w-24">Actions</th>
                     </tr>
@@ -119,6 +124,9 @@
                   <tbody>
                     <tr v-for="slot in group" :key="slot.id" class="border-t border-gray-100 hover:bg-gray-50">
                       <td class="px-4 py-2.5 font-medium text-gray-900">{{ slot.from }} – {{ slot.to }}</td>
+                      <td class="px-4 py-2.5 text-gray-600">
+                        {{ slot.capacity }}
+                      </td>
                       <td class="px-4 py-2.5">
                         <div v-if="slot.booked > 0" class="flex items-center gap-2">
                           <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
@@ -191,6 +199,7 @@ const blockDate = ref('')
 const blockStart = ref('')
 const blockEnd = ref('')
 const blockDuration = ref(30)
+const blockCapacity = ref(1)
 
 if (!isAdmin.value && myItems.value.length > 0) {
   selectedItemId.value = myItems.value[0].id
@@ -199,6 +208,7 @@ if (!isAdmin.value && myItems.value.length > 0) {
 
 watch(selectedItemId, () => {
   autoSelectDate()
+  prefillCapacity()
   if (selectedItemId.value) {
     bookingStore.fetchSlots(selectedItemId.value)
     bookingStore.fetchItemReservations(selectedItemId.value)
@@ -218,6 +228,7 @@ onMounted(async () => {
     await bookingStore.fetchSlots(selectedItemId.value)
     await bookingStore.fetchItemReservations(selectedItemId.value)
     autoSelectDate()
+    prefillCapacity()
   }
 })
 
@@ -228,6 +239,15 @@ function autoSelectDate() {
   const firstDate = slots.length ? slots[0].date : null
   selectedDateStr.value = firstDate
   if (firstDate) blockDate.value = firstDate
+}
+
+function prefillCapacity() {
+  const item = myItems.value.find(i => i.id === selectedItemId.value)
+  if (item && item.type === 'Room') {
+    blockCapacity.value = item.capacity || 1
+  } else {
+    blockCapacity.value = 1
+  }
 }
 
 const canAddBlock = computed(() =>
@@ -275,7 +295,7 @@ function clearDateFilter() {
 
 async function addBlock() {
   if (!canAddBlock.value || !selectedItemId.value) return
-  const count = await bookingStore.addPersonBlock(selectedItemId.value, blockDate.value, blockStart.value, blockEnd.value, blockDuration.value)
+  const count = await bookingStore.addPersonBlock(selectedItemId.value, blockDate.value, blockStart.value, blockEnd.value, blockDuration.value, blockCapacity.value)
   if (count > 0) {
     blockDate.value = ''
     blockStart.value = ''

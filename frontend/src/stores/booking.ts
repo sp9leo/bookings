@@ -1042,7 +1042,7 @@ export const useBookingStore = defineStore('booking', {
       return true
     },
 
-    async addPersonBlock(itemId?: string, date?: string, start?: string, end?: string, duration?: number): Promise<number> {
+    async addPersonBlock(itemId?: string, date?: string, start?: string, end?: string, duration?: number, capacity?: number): Promise<number> {
       if (!itemId || !date || !start || !end || !duration) return 0
       const res = await safePost<any>(`${API}.add_available_slots`, {
         item: itemId,
@@ -1050,6 +1050,7 @@ export const useBookingStore = defineStore('booking', {
         start_time: start,
         end_time: end,
         duration,
+        capacity: capacity && capacity > 0 ? capacity : null,
       })
       if (!res?.success) return 0
       await this.fetchSlots(itemId, date)

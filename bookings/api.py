@@ -982,22 +982,22 @@ def delete_user(name):
 
 
 @frappe.whitelist()
-def add_available_slots(item, date, start_time, end_time, duration=30):
+def add_available_slots(item, date, start_time, end_time, duration=30, capacity=None):
     """Create Available Slot records for an item between start and end at intervals."""
     _require_can_manage(item)
-    return _create_slots(item, [date], start_time, end_time, duration)
+    return _create_slots(item, [date], start_time, end_time, duration, capacity)
 
 
 @frappe.whitelist()
-def bulk_add_available_slots(items, dates, start_time, end_time, duration=30):
+def bulk_add_available_slots(items, dates, start_time, end_time, duration=30, capacity=None):
     """Create Available Slot records across multiple items and dates."""
     _require_admin()
     item_list = _coerce_list(items)
     date_list = _coerce_list(dates)
-    return _create_slots(item_list, date_list, start_time, end_time, duration)
+    return _create_slots(item_list, date_list, start_time, end_time, duration, capacity)
 
 
-def _create_slots(items, dates, start_time, end_time, duration):
+def _create_slots(items, dates, start_time, end_time, duration, capacity=None):
     from datetime import datetime, timedelta
     from frappe.utils import now_datetime
 
@@ -1011,7 +1011,7 @@ def _create_slots(items, dates, start_time, end_time, duration):
     created = 0
     for item in item_list:
         item_type = frappe.db.get_value("Reservation Item", item, "item_type") or "Person"
-        capacity = _room_capacity(item) if item_type == "Room" else 1
+        slot_capacity = int(capacity or 0) or (_room_capacity(item) if item_type == "Room" else 1)
         for date in dates:
             start = datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
             end = datetime.strptime(f"{date} {end_time}", "%Y-%m-%d %H:%M")
@@ -1028,7 +1028,7 @@ def _create_slots(items, dates, start_time, end_time, duration):
                         "slot_date": date,
                         "start_time": current.strftime("%Y-%m-%d %H:%M:%S"),
                         "end_time": (current + timedelta(minutes=duration)).strftime("%Y-%m-%d %H:%M:%S"),
-                        "capacity": capacity,
+                        "capacity": slot_capacity,
                         "booked": 0,
                         "is_full": 0,
                     })
