@@ -1,0 +1,42 @@
+{
+ "app_name": "bookings",
+ "docs": [
+  {
+   "doctype": "Available Slot",
+   "name": "Available Slot"
+  },
+  {
+   "doctype": "Item Group",
+   "name": "Item Group"
+  },
+  {
+   "doctype": "Reservation",
+   "name": "Reservation"
+  },
+  {
+   "doctype": "Reservation Item",
+   "name": "Reservation Item"
+  },
+  {
+   "doctype": "Room Booking",
+   "name": "Room Booking"
+  },
+  {
+   "doctype": "Schedule",
+   "name": "Schedule"
+  },
+  {
+   "doctype": "Schedule periods",
+   "name": "Schedule periods"
+  },
+  {
+   "doctype": "Schedule Slot",
+   "name": "Schedule Slot"
+  }
+ ],
+ "label": "Bookings",
+ "name": "Bookings",
+ "package_name": "bookings",
+ "restricted_to_user": null,
+ "version": 1
+}
