@@ -49,11 +49,9 @@ def get_or_create_slot(schedule, slot_date, period_number):
         return frappe.get_doc("Schedule Slot", existing)
     
     schedule_doc = frappe.get_doc("Schedule", schedule)
-    period = frappe.get_value(
-        "Schedule Periods",
-        {"parent": schedule, "period_number": period_number},
-        "*",
-        as_dict=True
+    period = next(
+        (p for p in schedule_doc.schedule_periods if p.period_number == int(period_number)),
+        None
     )
     
     if not period:

@@ -25,12 +25,12 @@
    "label": "Item",
    "options": "Reservation Item"
   },
-  {
-   "fieldname": "schedule_periods",
-   "fieldtype": "Table",
-   "label": "Time Periods",
-   "options": "Schedule Periods"
-  }
+   {
+    "fieldname": "schedule_periods",
+    "fieldtype": "Table",
+    "label": "Time Periods",
+    "options": "Schedule periods"
+   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,

@@ -97,38 +97,54 @@ def get_or_create_room_schedule(room):
     if not existing:
         existing = frappe.db.get_value("Schedule", {"reservation_item": room}, "name")
     if existing:
-        return _schedule_with_periods(existing)
+        doc = frappe.get_doc("Schedule", existing)
+        if len(doc.schedule_periods) == 0:
+            for period in _default_periods():
+                doc.append("schedule_periods", {**period, "doctype": "Schedule periods"})
+            doc.save(ignore_permissions=True)
+        return _schedule_with_periods(doc)
 
     schedule = frappe.get_doc({
         "doctype": "Schedule",
         "applies_to": "Room",
         "reservation_item": room,
         "schedule_periods": [
-            {
-                "period_number": idx,
-                "start_time": f"{hour:02d}:00:00",
-                "end_time": f"{hour + 1:02d}:00:00",
-                "label": f"{hour:02d}:00",
-            }
-            for idx, hour in enumerate(range(8, 17))
+            {"doctype": "Schedule periods", **period}
+            for period in _default_periods()
         ],
     })
     schedule.insert(ignore_permissions=True)
-    return _schedule_with_periods(schedule.name)
+    return _schedule_with_periods(schedule)
 
 
-def _schedule_with_periods(name):
-    periods = frappe.get_all(
-        "Schedule Periods",
-        filters={"parent": name},
-        fields=["period_number", "start_time", "end_time", "label"],
-        order_by="period_number",
-    )
-    doc = frappe.get_doc("Schedule", name)
+def _default_periods():
+    return [
+        {
+            "period_number": idx,
+            "start_time": f"{hour:02d}:00:00",
+            "end_time": f"{hour + 1:02d}:00:00",
+            "label": f"{hour:02d}:00",
+        }
+        for idx, hour in enumerate(range(8, 17))
+    ]
+
+
+def _schedule_with_periods(schedule):
+    if isinstance(schedule, str):
+        schedule = frappe.get_doc("Schedule", schedule)
+    periods = [
+        {
+            "period_number": p.period_number,
+            "start_time": p.start_time,
+            "end_time": p.end_time,
+            "label": p.label,
+        }
+        for p in schedule.schedule_periods
+    ]
     return {
-        "name": doc.name,
-        "applies_to": doc.applies_to,
-        "reservation_item": doc.reservation_item,
+        "name": schedule.name,
+        "applies_to": schedule.applies_to,
+        "reservation_item": schedule.reservation_item,
         "periods": periods,
     }
 

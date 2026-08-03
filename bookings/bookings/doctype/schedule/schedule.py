@@ -14,37 +14,48 @@ def get_schedules(item_type=None):
     schedules = frappe.get_all(
         "Schedule",
         filters=filters,
-        fields=["name", "applies_to", "reservation_item"],
+        fields=["name"],
         order_by="name"
     )
     
+    result = []
     for schedule in schedules:
-        periods = frappe.get_all(
-            "Schedule Periods",
-            filters={"parent": schedule.name},
-            fields=["period_number", "start_time", "end_time", "label"],
-            order_by="period_number"
-        )
-        schedule.periods = periods
+        doc = frappe.get_doc("Schedule", schedule.name)
+        result.append({
+            "name": doc.name,
+            "applies_to": doc.applies_to,
+            "reservation_item": doc.reservation_item,
+            "periods": [
+                {
+                    "period_number": p.period_number,
+                    "start_time": p.start_time,
+                    "end_time": p.end_time,
+                    "label": p.label,
+                }
+                for p in doc.schedule_periods
+            ],
+        })
     
-    return schedules
+    return result
 
 
 @frappe.whitelist()
 def get_schedule(name):
     """Get a single schedule with its periods."""
     doc = frappe.get_doc("Schedule", name)
-    periods = frappe.get_all(
-        "Schedule Periods",
-        filters={"parent": name},
-        fields=["period_number", "start_time", "end_time", "label"],
-        order_by="period_number"
-    )
     return {
         "name": doc.name,
         "applies_to": doc.applies_to,
         "reservation_item": doc.reservation_item,
-        "periods": periods
+        "periods": [
+            {
+                "period_number": p.period_number,
+                "start_time": p.start_time,
+                "end_time": p.end_time,
+                "label": p.label,
+            }
+            for p in doc.schedule_periods
+        ],
     }
 
 
