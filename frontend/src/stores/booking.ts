@@ -359,9 +359,38 @@ export const useBookingStore = defineStore('booking', {
     },
 
     getScheduleSlot: (state) => (roomId: string, date: string, time: string) => {
-      return state.scheduleSlots.find(
-        (slot) => slot.roomId === roomId && slot.date === date && slot.time === time
+      const slot = state.scheduleSlots.find(
+        (s) => s.roomId === roomId && s.date === date && s.time === time
       )
+      if (slot) return slot
+
+      const booking = state.roomBookings.find(
+        (b) => b.roomId === roomId && b.date === date && b.from === time
+      )
+      if (booking) {
+        const authStore = useAuthStore()
+        const isOwn = authStore.currentUser
+          ? booking.userEmail === authStore.currentUser.email ||
+            booking.userName === authStore.currentUser.name
+          : false
+        return {
+          id: booking.bookingRef,
+          roomId: booking.roomId,
+          date: booking.date,
+          time: booking.from,
+          endTime: booking.to,
+          status: 'booked' as const,
+          bookedCount: 1,
+          capacity: 1,
+          isFull: true,
+          bookedBy: booking.userName,
+          bookingRef: booking.bookingRef,
+          myBookingRef: isOwn ? booking.bookingRef : undefined,
+          isOwn,
+        } as ScheduleSlot
+      }
+
+      return undefined
     },
 
     getUserBookings: (state) => {
