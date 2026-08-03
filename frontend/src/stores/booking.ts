@@ -742,6 +742,7 @@ export const useBookingStore = defineStore('booking', {
       this.error = ''
       await this.fetchRoomAvailableSlots(roomId, date, date)
       await this.fetchMyRoomBookings()
+      await this.fetchSlots(roomId)
 
       const room = this.getRoomById(roomId)
       return {

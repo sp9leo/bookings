@@ -64,7 +64,13 @@ def _ensure_available_slot(room, date, start_hm, end_hm=None):
     """
     name = _available_slot_name(room, date, start_hm)
     if name:
-        return frappe.get_doc("Available Slot", name)
+        doc = frappe.get_doc("Available Slot", name)
+        capacity = _room_capacity(room)
+        if int(doc.capacity or 0) != capacity:
+            doc.capacity = capacity
+            doc.is_full = 1 if int(doc.booked or 0) >= capacity else 0
+            doc.save(ignore_permissions=True)
+        return doc
 
     start_dt = _combine_datetime(date, start_hm)
     end_dt = _combine_datetime(date, end_hm or _add_hour(start_hm))

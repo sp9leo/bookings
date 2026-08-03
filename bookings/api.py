@@ -1001,6 +1001,8 @@ def _create_slots(items, dates, start_time, end_time, duration):
     from datetime import datetime, timedelta
     from frappe.utils import now_datetime
 
+    from bookings.bookings.doctype.room_booking.room_booking import _room_capacity
+
     item_list = [items] if isinstance(items, str) else items
     duration = int(duration or 30)
     if duration <= 0:
@@ -1008,6 +1010,8 @@ def _create_slots(items, dates, start_time, end_time, duration):
 
     created = 0
     for item in item_list:
+        item_type = frappe.db.get_value("Reservation Item", item, "item_type") or "Person"
+        capacity = _room_capacity(item) if item_type == "Room" else 1
         for date in dates:
             start = datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
             end = datetime.strptime(f"{date} {end_time}", "%Y-%m-%d %H:%M")
@@ -1024,7 +1028,7 @@ def _create_slots(items, dates, start_time, end_time, duration):
                         "slot_date": date,
                         "start_time": current.strftime("%Y-%m-%d %H:%M:%S"),
                         "end_time": (current + timedelta(minutes=duration)).strftime("%Y-%m-%d %H:%M:%S"),
-                        "capacity": 1,
+                        "capacity": capacity,
                         "booked": 0,
                         "is_full": 0,
                     })

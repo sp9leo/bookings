@@ -47,6 +47,7 @@
             v-model="selectedDate"
             :min-date="minDate"
             :max-date="maxDate"
+            :highlight-dates="availableDates"
             @update:model-value="onDateChange"
           />
 
@@ -90,13 +91,12 @@
               class="py-3 px-4 rounded-xl font-medium text-sm transition-all duration-200"
               :class="isSelected(slot) 
                 ? 'bg-primary-500 text-white shadow-md scale-105' 
-                : slot.isBooked
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-gray-50 text-gray-700 hover:bg-primary-50 hover:text-primary-600'"
-              :disabled="slot.isBooked"
+                : 'bg-gray-50 text-gray-700 hover:bg-primary-50 hover:text-primary-600'"
             >
               {{ slot.from }}
-              <span v-if="slot.isBooked" class="block text-xs opacity-75">Booked</span>
+              <span v-if="slot.capacity > 1" class="block text-xs opacity-75">
+                {{ slot.capacity - slot.booked }} seat{{ slot.capacity - slot.booked !== 1 ? 's' : '' }} left
+              </span>
             </button>
           </div>
 
@@ -140,7 +140,9 @@
                 <span v-if="submitting">Booking...</span>
                 <span v-else>Book Room</span>
               </button>
-              <p v-if="errorMessage" class="mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{{ errorMessage }}</p>
+              <p v-if="errorMsg" class="mt-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                {{ errorMsg }}
+              </p>
             </form>
           </div>
         </div>
@@ -154,13 +156,11 @@ import { ref, computed, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { format, addDays, startOfDay } from 'date-fns'
 import { useBookingStore } from '@/stores/booking'
-import { useAuthStore } from '@/stores/auth'
 import CalendarPicker from '@/components/booking/CalendarPicker.vue'
 
 const route = useRoute()
 const router = useRouter()
 const bookingStore = useBookingStore()
-const authStore = useAuthStore()
 
 const roomId = route.params.id as string
 const room = computed(() => bookingStore.getRoomById(roomId))
@@ -168,7 +168,7 @@ const room = computed(() => bookingStore.getRoomById(roomId))
 const selectedDate = ref<Date | null>(null)
 const selectedRoomSlot = ref<any>(null)
 const submitting = ref(false)
-const errorMessage = ref('')
+const errorMsg = ref('')
 const form = reactive({
   name: '',
   email: '',
@@ -182,7 +182,17 @@ const maxDate = addDays(today, 30)
 const availableSlots = computed(() => {
   if (!selectedDate.value) return []
   const dateStr = format(selectedDate.value, 'yyyy-MM-dd')
-  return bookingStore.getRoomSlotsForDate(roomId, dateStr)
+  return bookingStore.getSlotsForItem(roomId, dateStr).filter((s: any) => s.booked < s.capacity)
+})
+
+const availableDates = computed(() => {
+  const dates = new Set<string>()
+  const slots = bookingStore.getSlotsForItem(roomId, null).filter((s: any) => s.booked < s.capacity)
+  for (const slot of slots) {
+    const d = new Date(`${slot.date}T00:00:00`)
+    if (d >= minDate && d <= maxDate) dates.add(slot.date)
+  }
+  return [...dates]
 })
 
 const formatSelectedDate = computed(() => {
@@ -200,24 +210,18 @@ const isFormValid = computed(() => {
 })
 
 onMounted(async () => {
-  if (bookingStore.rooms.length === 0) await bookingStore.fetchRooms()
-  await bookingStore.fetchGlobalTimeSlots()
-  await bookingStore.fetchRoomAvailableSlots(roomId, format(minDate, 'yyyy-MM-dd'), format(maxDate, 'yyyy-MM-dd'))
-  if (authStore.currentUser) {
-    form.name = authStore.currentUser.name
-    form.email = authStore.currentUser.email
+  if (bookingStore.rooms.length === 0) {
+    await bookingStore.fetchRooms()
   }
+  await bookingStore.fetchSlots(roomId)
 })
 
 function onDateChange() {
   selectedRoomSlot.value = null
-  errorMessage.value = ''
 }
 
 function selectSlot(slot: any) {
-  if (slot.isBooked) return
   selectedRoomSlot.value = slot
-  errorMessage.value = ''
   bookingStore.setSelectedRoomSlot(slot)
   bookingStore.setSelectedDate(selectedDate.value)
   bookingStore.setSelectedRoom(room.value!)
@@ -231,29 +235,39 @@ async function submitBooking() {
   if (!isFormValid.value || !selectedRoomSlot.value) return
 
   submitting.value = true
-  errorMessage.value = ''
+  errorMsg.value = ''
 
-  const booking = await bookingStore.createRoomBooking(selectedRoomSlot.value, form.name, form.email, form.title)
+  try {
+    const slot = selectedRoomSlot.value
+    const booking = await bookingStore.bookRoomAvailableSlot(
+      slot.itemId,
+      slot.date,
+      slot.from,
+      form.title,
+      { name: form.name, email: form.email },
+      slot.to
+    )
 
-  submitting.value = false
-
-  if (!booking) {
-    errorMessage.value = bookingStore.error || 'Booking failed. Please try again.'
-    return
-  }
-
-  errorMessage.value = ''
-
-  router.push({
-    path: '/rooms/confirm',
-    query: {
-      ref: booking.bookingRef,
-      room: booking.roomName,
-      date: booking.date,
-      time: `${booking.from} - ${booking.to}`,
-      name: booking.userName,
-      email: booking.userEmail
+    if (!booking) {
+      errorMsg.value = 'Booking failed — no confirmation received. Please try again.'
+      return
     }
-  })
+
+    router.push({
+      path: '/rooms/confirm',
+      query: {
+        ref: booking.bookingRef,
+        room: booking.roomName,
+        date: booking.date,
+        time: `${booking.from} - ${booking.to}`,
+        name: booking.userName,
+        email: booking.userEmail
+      }
+    })
+  } catch (e) {
+    errorMsg.value = e instanceof Error && e.message ? e.message : 'Booking failed — please try again.'
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
