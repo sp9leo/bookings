@@ -2,13 +2,20 @@
   <div class="px-4 py-6 max-w-3xl mx-auto">
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-xl font-bold text-gray-900">Room Time Slot Management</h1>
-      <button @click="showAddInput = !showAddInput" class="px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-lg hover:bg-primary-600 transition-colors">Add Time Slot</button>
+      <div class="flex items-center gap-2">
+        <button @click="refresh" :disabled="loading" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors">
+          {{ loading ? 'Refreshing...' : 'Refresh' }}
+        </button>
+        <button @click="showAddInput = !showAddInput" class="px-4 py-2 bg-primary-500 text-white text-sm font-semibold rounded-lg hover:bg-primary-600 transition-colors">Add Time Slot</button>
+      </div>
     </div>
 
     <div class="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-4 py-3 text-sm mb-4">
       Time slots are shared across all rooms and saved to the backend. Changes apply to the day/week views and the room calendar.
+      <span v-if="bookingStore.globalScheduleName" class="block mt-1 text-blue-700">Global schedule: <strong>{{ bookingStore.globalScheduleName }}</strong> (edit this record in the backend to add/remove times there)</span>
     </div>
 
+    <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-4">{{ loadError }}</div>
     <div v-if="saveError" class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-4">{{ saveError }}</div>
     <div v-if="saveMessage" class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm mb-4">{{ saveMessage }}</div>
 
@@ -65,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useBookingStore } from '@/stores/booking'
 
 const bookingStore = useBookingStore()
@@ -79,9 +86,30 @@ const deleteSlotCount = ref(0)
 
 const saveError = ref('')
 const saveMessage = ref('')
+const loadError = ref('')
+const loading = ref(false)
+
+async function refresh() {
+  loading.value = true
+  loadError.value = ''
+  const ok = await bookingStore.fetchGlobalTimeSlots()
+  loading.value = false
+  if (!ok) loadError.value = 'Could not load time slots from the backend.'
+}
+
+function handleVisibility() {
+  if (document.visibilityState === 'visible') refresh()
+}
 
 onMounted(async () => {
-  await bookingStore.fetchGlobalTimeSlots()
+  await refresh()
+  window.addEventListener('focus', refresh)
+  document.addEventListener('visibilitychange', handleVisibility)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', refresh)
+  document.removeEventListener('visibilitychange', handleVisibility)
 })
 
 const slotCounts = computed(() =>

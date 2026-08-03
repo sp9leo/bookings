@@ -262,6 +262,8 @@ export const useBookingStore = defineStore('booking', {
 
     currentScheduleDate: new Date(),
 
+    globalScheduleName: '',
+
     timeSlots: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'],
 
     loading: false,
@@ -515,12 +517,14 @@ export const useBookingStore = defineStore('booking', {
       }))
     },
 
-    async fetchGlobalTimeSlots() {
+    async fetchGlobalTimeSlots(): Promise<boolean> {
       const data = await apiGet<any>(`${API}.get_global_time_slots`)
-      if (!data || !Array.isArray(data.slots)) return
+      if (!data || !Array.isArray(data.slots)) return false
+      this.globalScheduleName = data.schedule || ''
       this.timeSlots = data.slots
         .map((s: any) => timeOf(s.start_time))
         .filter(Boolean)
+      return true
     },
 
     async saveGlobalTimeSlots(times: string[]): Promise<boolean> {

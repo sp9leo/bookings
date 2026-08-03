@@ -282,7 +282,10 @@ def _cancel_bookings_for_removed_times(times):
 def get_global_time_slots():
     """Get the global room time-slot list (single source of truth for room views)."""
     name = _global_schedule_name()
-    _sync_room_schedules()
+    try:
+        _sync_room_schedules()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "sync room schedules from global slots")
     doc = frappe.get_doc("Schedule", name)
     return {
         "schedule": name,
