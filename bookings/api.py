@@ -59,7 +59,81 @@ def get_slots(item, date=None):
 def reserve(slot, customer_name, customer_email, notes=None):
     """Create a reservation for a slot."""
     from bookings.bookings.doctype.reservation.reservation import create_reservation
-    return create_reservation(slot, customer_name, customer_email, notes)
+    result = create_reservation(slot, customer_name, customer_email, notes)
+    _send_reservation_confirmation(result, customer_email)
+    return result
+
+
+def _send_reservation_confirmation(result, customer_email):
+    """Send a confirmation email for a public booking (best-effort, never blocks)."""
+    import re
+
+    if not result or not result.get("name"):
+        return
+    if not re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", customer_email or ""):
+        return
+    try:
+        doc = frappe.db.get_value(
+            "Reservation",
+            result["name"],
+            ["customer_name", "booking_ref", "from_time", "to_time", "reservation_item"],
+            as_dict=True,
+        )
+        if not doc:
+            return
+        item = frappe.db.get_value(
+            "Reservation Item",
+            doc.reservation_item,
+            ["item_name", "item_type"],
+            as_dict=True,
+        )
+        item_name = (item.item_name if item else "") or doc.reservation_item
+        item_type = (item.item_type if item else "") or ""
+
+        manage_path = "/rooms/my" if item_type == "Room" else "/book/my"
+        manage_url = frappe.utils.get_url() + manage_path
+
+        from_time = frappe.utils.get_datetime(doc.from_time)
+        to_time = frappe.utils.get_datetime(doc.to_time)
+        date_str = from_time.strftime("%A, %d %B %Y")
+
+        message = f"""
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;padding:32px;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden;">
+        <tr>
+          <td style="background-color:#4f46e5;padding:24px 28px;color:#ffffff;font-size:20px;font-weight:bold;text-align:center;">Booking Confirmation</td>
+        </tr>
+        <tr>
+          <td style="padding:28px;">
+            <p style="margin:0 0 20px;font-size:15px;color:#374151;">Hi {frappe.utils.cstr(doc.customer_name)},</p>
+            <p style="margin:0 0 20px;font-size:15px;color:#374151;">Your booking has been confirmed. Here are the details:</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;border-radius:12px;padding:16px 20px;font-size:14px;">
+              <tr><td style="padding:4px 0;color:#6b7280;">Session with</td><td style="padding:4px 0;font-weight:600;text-align:right;">{frappe.utils.cstr(item_name)}</td></tr>
+              <tr><td style="padding:4px 0;color:#6b7280;">Date</td><td style="padding:4px 0;font-weight:600;text-align:right;">{date_str}</td></tr>
+              <tr><td style="padding:4px 0;color:#6b7280;">Time</td><td style="padding:4px 0;font-weight:600;text-align:right;">{from_time.strftime("%H:%M")} – {to_time.strftime("%H:%M")}</td></tr>
+              <tr><td style="padding:4px 0;color:#6b7280;">Booking reference</td><td style="padding:4px 0;font-weight:700;text-align:right;">{frappe.utils.cstr(doc.booking_ref)}</td></tr>
+            </table>
+            <p style="margin:20px 0 8px;font-size:13px;color:#6b7280;">Keep your booking reference handy to view or cancel your booking:</p>
+            <a href="{manage_url}" style="display:inline-block;background-color:#4f46e5;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 24px;border-radius:10px;">View my booking</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+"""
+        frappe.sendmail(
+            recipients=[customer_email],
+            subject=f"Booking Confirmation — {item_name}",
+            message=message,
+            reference_doctype="Reservation",
+            reference_name=doc.name,
+            header="Booking Confirmation",
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "send reservation confirmation email")
 
 
 @frappe.whitelist(allow_guest=True)
