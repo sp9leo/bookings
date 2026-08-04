@@ -53,9 +53,6 @@
                 <template v-else>
                   <div class="text-[12px] leading-tight font-medium truncate flex items-center gap-0.5">
                     {{ shortName(getSlot(room.id, day.dateStr, ts)?.bookedBy || '') }}
-                    <span v-if="(getSlot(room.id, day.dateStr, ts)?.capacity ?? 1) > 1" class="text-[9px] text-gray-500">
-                      {{ getSlot(room.id, day.dateStr, ts)?.bookedCount }}/{{ getSlot(room.id, day.dateStr, ts)?.capacity }}
-                    </span>
                   </div>
                   <div class="text-[9px] leading-tight text-gray-500 truncate">{{ getSlot(room.id, day.dateStr, ts)?.description || '' }}</div>
                 </template>
@@ -161,10 +158,10 @@ function cellClasses(slot: ScheduleSlot | undefined): Record<string, boolean> {
   if (!slot) return { 'bg-emerald-20 hover:bg-emerald-100 text-emerald-600': true }
   const owned = isOwn(slot)
   return {
-    'bg-emerald-20 hover:bg-emerald-100 text-emerald-600 cursor-pointer': slot.status === 'free',
+    'bg-emerald-50 hover:bg-emerald-100 text-emerald-600  cursor-pointer': slot.status === 'free',
     'hover:brightness-95 text-black-600': slot.status === 'booked' && owned,
     'text-gray-400 cursor-not-allowed': slot.status === 'booked' && !owned && !authStore.isAdmin,
-    'bg-gray-50 text-gray-300 cursor-not-allowed opacity-40': slot.status === 'past', 
+    'hover:bg-red-100 bg-gray-100 text-gray-400 cursor-not-allowed opacity-80': slot.status === 'past', 
   }
 }
 

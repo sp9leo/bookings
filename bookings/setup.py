@@ -13,7 +13,7 @@ def ensure_user_color_field():
             "dt": "User",
             "fieldname": "bookings_color",
             "label": "Bookings Color",
-            "fieldtype": "Data",
+            "fieldtype": "Color",
         }
     ).insert(ignore_permissions=True, ignore_if_duplicate=True)
 

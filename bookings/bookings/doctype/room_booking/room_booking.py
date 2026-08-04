@@ -45,7 +45,7 @@ def _slot_booked_rooms(room, date, start_hm):
             "status": "Confirmed",
         },
         fields=["name", "booking_ref", "customer_name", "customer_email",
-                "from_time", "notes", "available_slot"],
+                "from_time", "notes", "available_slot", "recurring_group_id"],
     )
     return [r for r in rows if _time_of(r.get("from_time")) == start_hm]
 
@@ -120,6 +120,63 @@ def _increment_available_slot(slot_name, message):
     )
 
 
+def _insert_room_booking(room, date, start_hm, end_hm, notes, customer_name, customer_email,
+                         recurring_group_id=None, recurring_frequency=None,
+                         recurring_interval=None, recurring_until_date=None):
+    """Create a Confirmed Room Booking, reconciling Available Slot counts.
+
+    Mirrors the create path used by book_room_slot so recurring regeneration
+    and ad-hoc bookings behave identically.
+    """
+    slot_doc = _available_slot_doc(room, date, start_hm, end_hm)
+    if slot_doc:
+        _increment_available_slot(
+            slot_doc.name,
+            f"This room is fully booked at {start_hm} on {date}",
+        )
+    else:
+        booked = len(_slot_booked_rooms(room, date, start_hm))
+        capacity = _room_capacity(room)
+        if booked >= capacity:
+            frappe.throw(f"This room is fully booked at {start_hm} on {date}")
+
+    booking = frappe.get_doc({
+        "doctype": "Room Booking",
+        "available_slot": slot_doc.name if slot_doc else "",
+        "reservation_item": room,
+        "customer_name": customer_name,
+        "customer_email": customer_email,
+        "booking_date": date,
+        "from_time": _combine_datetime(date, start_hm),
+        "to_time": _combine_datetime(date, end_hm),
+        "notes": notes,
+        "status": "Confirmed",
+        "booking_ref": generate_booking_ref(),
+        "recurring_group_id": recurring_group_id or "",
+        "recurring_frequency": recurring_frequency or "",
+        "recurring_interval": recurring_interval,
+        "recurring_until_date": recurring_until_date or "",
+    })
+    booking.insert(ignore_permissions=True)
+    return booking
+
+
+def _scope_targets(booking, scope):
+    """Resolve the Room Bookings affected by an edit, based on scope.
+
+    scope 'this' -> only the booking itself.
+    scope 'future' -> the booking and later members of its recurring group.
+    scope 'all' -> every active member of its recurring group.
+    """
+    group = (booking.get("recurring_group_id") or "").strip()
+    if scope == "this" or not group:
+        return [booking.name]
+    filters = {"recurring_group_id": group, "status": "Confirmed"}
+    if scope == "future":
+        filters["booking_date"] = [">=", str(booking.booking_date)]
+    return frappe.get_all("Room Booking", filters=filters, pluck="name")
+
+
 def _release_available_slot(slot_name):
     """Release one seat on an Available Slot and recompute is_full."""
     if not slot_name:
@@ -172,28 +229,121 @@ def create_room_booking(schedule_slot, notes=None):
 
 
 @frappe.whitelist()
-def cancel_room_booking(booking_ref):
-    """Cancel a room booking."""
+def cancel_room_booking(booking_ref, scope="this"):
+    """Cancel a room booking (optionally its whole recurring series)."""
     booking = frappe.get_doc("Room Booking", {"booking_ref": booking_ref})
-    
-    if booking.status == "Cancelled":
-        return {"success": False, "message": "Already cancelled"}
-    
-    if booking.schedule_slot:
-        try:
-            slot_doc = frappe.get_doc("Schedule Slot", booking.schedule_slot)
-            slot_doc.status = "Free"
-            slot_doc.booking_ref = None
-            slot_doc.save(ignore_permissions=True)
-        except Exception:
-            pass
-    
-    _release_available_slot(booking.available_slot)
-    
-    booking.status = "Cancelled"
-    booking.save(ignore_permissions=True)
-    
-    return {"success": True, "message": "Booking cancelled"}
+    targets = _scope_targets(booking, scope)
+
+    cancelled = 0
+    for name in targets:
+        doc = booking if name == booking.name else frappe.get_doc("Room Booking", name)
+
+        if doc.status == "Cancelled":
+            continue
+
+        if doc.schedule_slot:
+            try:
+                slot_doc = frappe.get_doc("Schedule Slot", doc.schedule_slot)
+                slot_doc.status = "Free"
+                slot_doc.booking_ref = None
+                slot_doc.save(ignore_permissions=True)
+            except Exception:
+                pass
+
+        _release_available_slot(doc.available_slot)
+
+        doc.status = "Cancelled"
+        doc.save(ignore_permissions=True)
+        cancelled += 1
+
+    return {"success": True, "message": "Booking cancelled", "cancelled": cancelled}
+
+
+def update_recurring_group(booking_ref, frequency, interval, until_date, scope="future"):
+    """Regenerate the set of dates in a recurring group, or unlink the series.
+
+    scope 'future' regenerates from the edited booking's date onward.
+    scope 'all' regenerates the entire series.
+    An empty frequency/until_date unlinks (detaches) the group members instead.
+    """
+    from frappe.utils import add_days, add_months, getdate
+
+    booking = frappe.get_doc("Room Booking", {"booking_ref": booking_ref})
+    group = (booking.get("recurring_group_id") or "").strip()
+
+    if not group:
+        frappe.throw("This booking is not part of a recurring series")
+
+    members = frappe.get_all(
+        "Room Booking",
+        filters={"recurring_group_id": group, "status": "Confirmed"},
+        fields=["name", "booking_date"],
+        order_by="booking_date asc",
+    )
+    if not members:
+        frappe.throw("No active occurrences in this recurring series")
+
+    if not frequency or not until_date:
+        for name in _scope_targets(booking, scope):
+            doc = frappe.get_doc("Room Booking", name)
+            doc.recurring_group_id = ""
+            doc.recurring_frequency = ""
+            doc.recurring_interval = None
+            doc.recurring_until_date = ""
+            doc.save(ignore_permissions=True)
+        return {"success": True, "unlinked": True}
+
+    anchor = getdate(members[0]["booking_date"]) if scope == "all" else getdate(booking.booking_date)
+    until = getdate(until_date)
+    interval = max(1, int(interval or 1))
+
+    desired = []
+    current = anchor
+    count = 0
+    while current <= until and count < 500:
+        desired.append(current)
+        if frequency == "daily":
+            current = add_days(current, interval)
+        elif frequency == "weekly":
+            current = add_days(current, 7 * interval)
+        else:
+            current = add_months(current, interval)
+        count += 1
+
+    if not desired:
+        frappe.throw("The recurrence end date is before the series start")
+
+    existing = {getdate(m["booking_date"]): m["name"] for m in members}
+    desired_set = set(desired)
+
+    removed = [name for mdate, name in existing.items() if mdate >= anchor and mdate not in desired_set]
+    for name in removed:
+        doc = frappe.get_doc("Room Booking", name)
+        _release_available_slot(doc.available_slot)
+        doc.status = "Cancelled"
+        doc.save(ignore_permissions=True)
+
+    start_hm = _time_of(booking.from_time)
+    end_hm = _time_of(booking.to_time)
+    for mdate in desired:
+        if mdate in existing:
+            continue
+        _insert_room_booking(
+            booking.reservation_item, str(mdate), start_hm, end_hm,
+            booking.notes, booking.customer_name, booking.customer_email,
+            group, frequency, interval, str(until),
+        )
+
+    for name in members:
+        doc = frappe.get_doc("Room Booking", name["name"])
+        if doc.status == "Cancelled":
+            continue
+        doc.recurring_frequency = frequency
+        doc.recurring_interval = interval
+        doc.recurring_until_date = str(until)
+        doc.save(ignore_permissions=True)
+
+    return {"success": True, "occurrences": len(desired)}
 
 
 @frappe.whitelist()
@@ -209,7 +359,8 @@ def get_my_bookings(user=None):
         filters={"customer_email": ["in", [user, user_email]]},
         fields=["name", "booking_ref", "schedule_slot", "available_slot", "reservation_item",
                 "customer_name", "customer_email", "booking_date", "from_time", "to_time",
-                "status", "notes"],
+                "status", "notes", "recurring_group_id", "recurring_frequency",
+                "recurring_interval", "recurring_until_date"],
         order_by="booking_date desc"
     )
     return bookings
@@ -223,7 +374,8 @@ def lookup_room_booking(email, booking_ref):
         filters={"customer_email": email, "booking_ref": booking_ref},
         fields=["name", "booking_ref", "schedule_slot", "available_slot", "reservation_item",
                 "customer_name", "customer_email", "booking_date", "from_time", "to_time",
-                "status", "notes"],
+                "status", "notes", "recurring_group_id", "recurring_frequency",
+                "recurring_interval", "recurring_until_date"],
     )
 
 

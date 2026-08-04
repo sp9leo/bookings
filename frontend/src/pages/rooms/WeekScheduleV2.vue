@@ -195,7 +195,7 @@
               <button @click="handleEditCancel" class="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors">Cancel</button>
               <button
                 @click="handleSave"
-                :disabled="selectedTime === selectedSlot?.time && editDescription === (selectedSlot?.description || '') && editBookedBy === (selectedSlot?.bookedBy || '')"
+                :disabled="selectedTime === selectedSlot?.time && editDescription === (selectedSlot?.description || '') && editBookedBy === (selectedSlot?.bookedBy || '') && !recurrenceChanged()"
                 class="flex-1 py-3 bg-primary-500 text-white font-semibold rounded-xl hover:bg-primary-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
                 Save
@@ -395,6 +395,18 @@ function handleCancel() {
   modalError.value = ''
 }
 
+function recurrenceChanged(): boolean {
+  if (!selectedSlot.value) return false
+  const existing = bookingStore.roomBookings
+    .find(b => b.bookingRef === selectedSlot.value?.bookingRef)?.recurrence
+  return editEnableRecurrence.value !== !!existing
+    || !!((editEnableRecurrence.value && existing) && (
+      editRecurrenceFrequency.value !== existing.frequency ||
+      editRecurrenceInterval.value !== existing.interval ||
+      editRecurrenceUntilDate.value !== existing.untilDate
+    ))
+}
+
 async function handleSave() {
   const slot = selectedSlot.value
   if (!slot || !slot.bookingRef) return
@@ -412,31 +424,41 @@ async function handleSave() {
     await bookingStore.updateScheduleSlotBookedBy(ref, editBookedBy.value, editScope.value)
   }
 
-  const existingBooking = bookingStore.roomBookings.find(b => b.bookingRef === ref)
-  if (existingBooking) {
-    if (editEnableRecurrence.value) {
-      bookingStore.updateRecurrence(ref, {
-        frequency: editRecurrenceFrequency.value,
-        interval: editRecurrenceInterval.value,
-        untilDate: editRecurrenceUntilDate.value,
-      })
-    } else {
-      bookingStore.updateRecurrence(ref)
-    }
+  if (recurrenceChanged() && editScope.value !== 'this') {
+    await bookingStore.updateRecurrence(ref,
+      editEnableRecurrence.value
+        ? {
+            frequency: editRecurrenceFrequency.value,
+            interval: editRecurrenceInterval.value,
+            untilDate: editRecurrenceUntilDate.value,
+          }
+        : undefined,
+      editScope.value
+    )
   }
+
+  await bookingStore.refreshRoomBookings()
+  await refreshWeekSlots()
 
   showEditModal.value = false
   selectedSlot.value = null
+}
+
+async function refreshWeekSlots() {
+  if (bookingStore.rooms.length === 0) await bookingStore.fetchRooms()
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
+  const start = format(weekStart, 'yyyy-MM-dd')
+  const end = format(addDays(weekStart, 60), 'yyyy-MM-dd')
+  await Promise.all(
+    bookingStore.rooms.map(r => bookingStore.fetchRoomAvailableSlots(r.id, start, end))
+  )
 }
 
 async function handleDeleteBooking() {
   if (!selectedSlot.value || !selectedSlot.value.bookingRef) return
   await bookingStore.cancelScheduleBooking(selectedSlot.value.bookingRef, editScope.value)
   await bookingStore.refreshRoomBookings()
-  const dateStr = format(selectedSlot.value.date, 'yyyy-MM-dd')
-  await Promise.all(
-    bookingStore.rooms.map(r => bookingStore.fetchRoomAvailableSlots(r.id, dateStr, dateStr))
-  )
+  await refreshWeekSlots()
   showEditModal.value = false
   selectedSlot.value = null
 }

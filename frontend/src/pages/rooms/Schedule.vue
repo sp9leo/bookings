@@ -300,7 +300,7 @@ function handleSlotClick(slot: ScheduleSlot) {
   
   if (slot.status === 'booked' && (slot.isOwn || authStore.isAdmin)) {
     showCancelModal.value = true
-  } else if (slot.status === 'free') {
+  } else if (slot.status === 'free' || (slot.status === 'booked' && !slot.isFull)) {
     showModal.value = true
   }
 }

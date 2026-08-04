@@ -58,6 +58,9 @@ function getSlotClasses() {
     if (props.slot.isOwn) {
       return 'bg-blue-100 border-2 border-blue-300 text-blue-700 cursor-pointer hover:bg-blue-200 hover:border-blue-400'
     }
+    if (!props.slot.isFull) {
+      return 'bg-emerald-50 border-2 border-dashed border-emerald-300 text-emerald-700 cursor-pointer hover:bg-emerald-100 hover:border-emerald-400 hover:shadow-sm'
+    }
     return 'bg-gray-200 text-gray-600 cursor-not-allowed'
   }
   return 'bg-emerald-50 border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 hover:shadow-sm'

@@ -15,7 +15,11 @@
   "to_time",
   "notes",
   "status",
-  "booking_ref"
+  "booking_ref",
+  "recurring_group_id",
+  "recurring_frequency",
+  "recurring_interval",
+  "recurring_until_date"
  ],
  "fields": [
   {
@@ -85,6 +89,26 @@
    "fieldname": "booking_ref",
    "fieldtype": "Data",
    "label": "Booking Reference"
+  },
+  {
+   "fieldname": "recurring_group_id",
+   "fieldtype": "Data",
+   "label": "Recurring Group"
+  },
+  {
+   "fieldname": "recurring_frequency",
+   "fieldtype": "Data",
+   "label": "Recurring Frequency"
+  },
+  {
+   "fieldname": "recurring_interval",
+   "fieldtype": "Int",
+   "label": "Recurring Interval"
+  },
+  {
+   "fieldname": "recurring_until_date",
+   "fieldtype": "Data",
+   "label": "Recurring Until"
   }
  ],
  "grid_page_length": 50,

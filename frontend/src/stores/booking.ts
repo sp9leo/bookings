@@ -82,6 +82,7 @@ export interface RoomBooking {
   status: 'Confirmed' | 'Cancelled'
   bookingRef: string
   notes?: string
+  recurringGroupId?: string
   recurrence?: RecurrenceConfig
 }
 
@@ -227,6 +228,14 @@ function mapRoomBooking(apiB: any, roomNames: Map<string, string>): RoomBooking 
     status: apiB.status === 'Cancelled' ? 'Cancelled' : 'Confirmed',
     bookingRef: apiB.booking_ref,
     notes: apiB.notes,
+    recurringGroupId: apiB.recurring_group_id || undefined,
+    recurrence: apiB.recurring_frequency
+      ? {
+          frequency: apiB.recurring_frequency,
+          interval: Number(apiB.recurring_interval) || 1,
+          untilDate: apiB.recurring_until_date || '',
+        }
+      : undefined,
   }
 }
 
@@ -246,7 +255,7 @@ function mapScheduleSlot(apiSlot: any): ScheduleSlot {
   const primary = bookers.find((b: any) => b.bookingRef === apiSlot.my_booking_ref) || bookers[0] || null
   const status: ScheduleSlot['status'] = isPast
     ? 'past'
-    : apiSlot.status === 'booked' || isFull
+    : bookedCount > 0
       ? 'booked'
       : 'free'
   return {
@@ -265,6 +274,10 @@ function mapScheduleSlot(apiSlot: any): ScheduleSlot {
     bookingRef: apiSlot.my_booking_ref || apiSlot.booking_ref || (primary ? primary.bookingRef : undefined),
     myBookingRef: apiSlot.my_booking_ref || undefined,
     periodNumber: apiSlot.period_number,
+    recurringGroupId:
+      apiSlot.recurring_group_id ||
+      (apiSlot.bookers && apiSlot.bookers[0]?.recurring_group_id) ||
+      undefined,
   }
 }
 
@@ -858,6 +871,9 @@ export const useBookingStore = defineStore('booking', {
           notes: description || null,
           customer_name: customerName,
           customer_email: customerEmail,
+          frequency: recurrence.frequency,
+          interval: recurrence.interval,
+          until_date: recurrence.untilDate,
         })
       } catch (e: any) {
         this.error = e?.message || 'Booking failed. Please try again.'
@@ -873,45 +889,77 @@ export const useBookingStore = defineStore('booking', {
       return created.length > 0 ? created[0].booking_ref : null
     },
 
-    async updateScheduleSlotDescription(bookingRef: string, description: string, _scope: Scope = 'this'): Promise<boolean> {
-      const res = await safePost<any>(`${API}.update_booking_details`, { booking_ref: bookingRef, notes: description })
+    async updateScheduleSlotDescription(bookingRef: string, description: string, scope: Scope = 'this'): Promise<boolean> {
+      const res = await safePost<any>(`${API}.update_booking_details`, { booking_ref: bookingRef, notes: description, scope })
       if (!res?.success) return false
-      const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
-      if (slot) slot.description = description
       const booking = this.roomBookings.find((b) => b.bookingRef === bookingRef)
       if (booking) booking.notes = description
+      if (booking?.recurringGroupId && scope !== 'this') {
+        for (const b of this.roomBookings) {
+          if (b.recurringGroupId === booking.recurringGroupId) b.notes = description
+        }
+      }
+      const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
+      if (slot) slot.description = description
       return true
     },
 
-    async updateScheduleSlotBookedBy(bookingRef: string, name: string, _scope: Scope = 'this'): Promise<boolean> {
-      const res = await safePost<any>(`${API}.update_booking_details`, { booking_ref: bookingRef, customer_name: name })
+    async updateScheduleSlotBookedBy(bookingRef: string, name: string, scope: Scope = 'this'): Promise<boolean> {
+      const res = await safePost<any>(`${API}.update_booking_details`, { booking_ref: bookingRef, customer_name: name, scope })
       if (!res?.success) return false
-      const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
-      if (slot) slot.bookedBy = name
       const booking = this.roomBookings.find((b) => b.bookingRef === bookingRef)
       if (booking) booking.userName = name
+      if (booking?.recurringGroupId && scope !== 'this') {
+        for (const b of this.roomBookings) {
+          if (b.recurringGroupId === booking.recurringGroupId) b.userName = name
+        }
+      }
+      const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
+      if (slot) slot.bookedBy = name
       return true
     },
 
-    updateRecurrence(_bookingRef: string, _recurrence?: RecurrenceConfig): boolean {
-      return false
+    async updateRecurrence(bookingRef: string, recurrence?: RecurrenceConfig, scope: Scope = 'future'): Promise<boolean> {
+      const res = await safePost<any>(`${API}.update_recurrence`, {
+        booking_ref: bookingRef,
+        frequency: recurrence?.frequency || '',
+        interval: recurrence?.interval ?? 0,
+        until_date: recurrence?.untilDate || '',
+        scope,
+      })
+      if (!res?.success) return false
+      await this.refreshRoomBookings()
+      return true
     },
 
-    async cancelScheduleBooking(bookingRef: string, _scope: Scope = 'this'): Promise<boolean> {
-      const res = await safePost<any>(`${API}.cancel_room_booking`, { booking_ref: bookingRef })
+    async cancelScheduleBooking(bookingRef: string, scope: Scope = 'this'): Promise<boolean> {
+      const res = await safePost<any>(`${API}.cancel_room_booking`, { booking_ref: bookingRef, scope })
       if (!res?.success) return false
-      const slot = this.scheduleSlots.find((s) => s.bookingRef === bookingRef)
-      if (slot) {
+      const booking = this.roomBookings.find((b) => b.bookingRef === bookingRef)
+      const group = booking?.recurringGroupId
+      if (booking) booking.status = 'Cancelled'
+      if (group && scope !== 'this') {
+        for (const b of this.roomBookings) {
+          if (b.recurringGroupId === group && b !== booking) {
+            if (scope === 'future' && b.date < booking!.date) continue
+            b.status = 'Cancelled'
+          }
+        }
+      }
+      for (const slot of this.scheduleSlots) {
+        const isTarget = slot.bookingRef === bookingRef
+        const isGroup = group && scope !== 'this' && slot.recurringGroupId === group
+        if (!isTarget && !isGroup) continue
+        if (isGroup && scope === 'future' && booking && slot.date < booking.date) continue
         slot.status = 'free'
         slot.bookedBy = ''
         slot.bookingRef = undefined
         slot.myBookingRef = undefined
         slot.description = ''
         slot.bookers = []
-        slot.bookedCount = Math.max(0, slot.bookedCount - 1)
+        slot.bookedCount = 0
+        slot.isFull = false
       }
-      const booking = this.roomBookings.find((b) => b.bookingRef === bookingRef)
-      if (booking) booking.status = 'Cancelled'
       return true
     },
 
@@ -923,7 +971,7 @@ export const useBookingStore = defineStore('booking', {
       return this.cancelScheduleBooking(bookingRef)
     },
 
-    async updateBookingTime(bookingRef: string, newTime: string, _scope: Scope = 'this'): Promise<RoomBooking | null> {
+    async updateBookingTime(bookingRef: string, newTime: string, scope: Scope = 'this'): Promise<RoomBooking | null> {
       const booking = this.roomBookings.find((b) => b.bookingRef === bookingRef)
       if (!booking) return null
 
@@ -935,6 +983,7 @@ export const useBookingStore = defineStore('booking', {
           booking_ref: bookingRef,
           new_start_time: newTime,
           new_end_time: newEnd,
+          scope,
         })
       } catch (e: any) {
         this.error = e?.message || 'Could not move the booking.'
