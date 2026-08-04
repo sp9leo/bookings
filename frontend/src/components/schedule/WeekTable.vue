@@ -1,15 +1,27 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-4">
-      <button @click="prevWeek" class="p-1.5 hover:bg-gray-200 rounded-lg transition-colors text-gray-600">
+    <div class="flex items-center  mb-4">
+      <div class="flex items-center gap-1">
+        <button @click="prevWeek" class="p-1.5 hover:bg-gray-200 rounded-lg transition-colors text-gray-600">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <span class="text-sm font-semibold text-gray-900 min-w-[160px] text-center">{{ weekLabel }}</span>
+        <button @click="nextWeek" class="p-1.5 hover:bg-gray-200 rounded-lg transition-colors text-gray-600">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+      <button
+        @click="goCurrentWeek"
+        :disabled="isCurrentWeek"
+        :title="isCurrentWeek ? 'You are viewing the current week' : 'Go to current week'"
+        class="p-1.5 rounded-lg transition-colors text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-      <span class="text-sm font-semibold text-gray-900">{{ weekLabel }}</span>
-      <button @click="nextWeek" class="p-1.5 hover:bg-gray-200 rounded-lg transition-colors text-gray-600">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
         </svg>
       </button>
     </div>
@@ -124,6 +136,16 @@ async function nextWeek() {
   await refreshWeek()
 }
 
+const isCurrentWeek = computed(() =>
+  format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd') ===
+  format(currentWeekStart.value, 'yyyy-MM-dd')
+)
+
+async function goCurrentWeek() {
+  currentWeekStart.value = startOfWeek(new Date(), { weekStartsOn: 1 })
+  await refreshWeek()
+}
+
 const weekDays = computed(() => {
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
   return days.map((label, i) => {
@@ -159,7 +181,7 @@ function cellClasses(slot: ScheduleSlot | undefined): Record<string, boolean> {
   const owned = isOwn(slot)
   const beyond = bookingStore.isBeyondAdvanceWindow(slot.roomId, slot.date)
   return {
-    'bg-emerald-50 hover:bg-emerald-100 text-emerald-600  cursor-pointer': slot.status === 'free',
+    'bg-emerald-20 hover:bg-emerald-100 text-emerald-600  cursor-pointer': slot.status === 'free',
     'hover:brightness-95 text-black-600': slot.status === 'booked' && owned,
     'text-gray-400 cursor-not-allowed': slot.status === 'booked' && !owned && !authStore.isAdmin,
     'hover:bg-red-100 bg-gray-100 text-gray-400 cursor-not-allowed opacity-80': slot.status === 'past' || beyond,
