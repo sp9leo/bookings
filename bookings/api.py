@@ -941,6 +941,7 @@ def get_users():
         fields=["name", "full_name", "email"],
         order_by="full_name asc"
     )
+    has_color = frappe.db.has_column("User", "bookings_color")
     result = []
     for u in users:
         roles = frappe.get_roles(u.name)
@@ -953,6 +954,7 @@ def get_users():
             "full_name": u.full_name or u.name,
             "roles": roles,
             "is_admin": is_manager,
+            "bookings_color": u.get("bookings_color") if has_color else None,
         })
     return result
 
@@ -995,6 +997,20 @@ def update_user(name, full_name=None, role=None):
             doc.append("roles", {"role": "System Manager"})
         elif not want_sm and has_sm:
             doc.roles = [r for r in doc.roles if r.role != "System Manager"]
+    doc.save(ignore_permissions=True)
+    return {"success": True}
+
+
+@frappe.whitelist()
+def update_user_color(name, color):
+    """Set the bookings color for a Frappe user."""
+    import re
+
+    _require_admin()
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", color or ""):
+        frappe.throw("Invalid color, expected hex format like #3B82F6")
+    doc = frappe.get_doc("User", name)
+    doc.bookings_color = color
     doc.save(ignore_permissions=True)
     return {"success": True}
 

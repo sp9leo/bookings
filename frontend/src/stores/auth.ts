@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { apiGet, getCsrfToken } from '@/composables/api'
+import { apiGet, apiPost, getCsrfToken } from '@/composables/api'
 import { sessionUser, getSessionUserFromCookie } from '@/data/session'
 
 export interface CurrentUser {
@@ -105,9 +105,23 @@ export const useAuthStore = defineStore('auth', {
         id: u.name,
         name: u.full_name || u.name,
         email: u.email || u.name,
-        color: colorForName(u.full_name || u.name),
+        color: u.bookings_color || colorForName(u.full_name || u.name),
         role: u.is_admin ? 'admin' : 'user',
       }))
+    },
+
+    async updateUserColor(id: string, color: string): Promise<boolean> {
+      try {
+        await apiPost('/api/method/bookings.api.update_user_color', { name: id, color })
+        const user = this.users.find((u) => u.id === id)
+        if (user) user.color = color
+        if (this.currentUser?.id === id) {
+          this.currentUser = { ...this.currentUser, color }
+        }
+        return true
+      } catch {
+        return false
+      }
     },
   },
 })
