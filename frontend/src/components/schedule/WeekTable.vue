@@ -19,14 +19,14 @@
         <thead>
           <tr class="bg-gray-50">
             <th rowspan="2" class="border border-gray-200 px-2 py-1.5 text-gray-700 font-semibold w-20">Date</th>
-            <th rowspan="2" class="border border-gray-200 px-2 py-1.5 text-gray-700 font-semibold w-28">Room</th>
+            <th rowspan="2" class="border border-gray-200 px-2 py-1.5 text-gray-700 font-semibold w-20">Room</th>
             <th v-for="(ts, i) in timeSlots" :key="i" class="border border-gray-200 px-1.5 py-1 text-gray-700 font-semibold w-16">
               {{ formatTime(ts) }}
             </th>
           </tr>
           <tr class="bg-gray-50/50">
             <th v-for="(ts, i) in timeSlots" :key="'sub-'+i" class="border border-gray-200 px-1.5 py-0.5 text-[10px] font-normal text-gray-400">
-              {{ formatTime(ts) }}
+              {{ bookingStore.timeSlotLabels[ts] || formatTime(ts) }}
             </th>
           </tr>
         </thead>
@@ -39,7 +39,7 @@
               </td>
               <td class="border border-gray-200 px-2 py-1 text-gray-600 whitespace-nowrap">{{ room.shortName }}</td>
               <td v-for="(ts, tsIdx) in timeSlots" :key="tsIdx"
-                class="border border-gray-200 px-1 py-1 text-center cursor-pointer select-none"
+                class="border border-gray-200 px-1 py-1 h-[45px] align-middle text-center cursor-pointer select-none"
                 :class="cellClasses(getSlot(room.id, day.dateStr, ts))"
                 :style="cellStyle(getSlot(room.id, day.dateStr, ts))"
                 @click="handleClick(room.id, day.dateStr, ts)"
@@ -157,11 +157,12 @@ function isOwn(slot: ScheduleSlot | undefined): boolean {
 function cellClasses(slot: ScheduleSlot | undefined): Record<string, boolean> {
   if (!slot) return { 'bg-emerald-20 hover:bg-emerald-100 text-emerald-600': true }
   const owned = isOwn(slot)
+  const beyond = bookingStore.isBeyondAdvanceWindow(slot.roomId, slot.date)
   return {
     'bg-emerald-50 hover:bg-emerald-100 text-emerald-600  cursor-pointer': slot.status === 'free',
     'hover:brightness-95 text-black-600': slot.status === 'booked' && owned,
     'text-gray-400 cursor-not-allowed': slot.status === 'booked' && !owned && !authStore.isAdmin,
-    'hover:bg-red-100 bg-gray-100 text-gray-400 cursor-not-allowed opacity-80': slot.status === 'past', 
+    'hover:bg-red-100 bg-gray-100 text-gray-400 cursor-not-allowed opacity-80': slot.status === 'past' || beyond,
   }
 }
 
@@ -195,6 +196,7 @@ function handleClick(roomId: string, dateStr: string, time: string) {
     slot = { id: '', roomId, date: dateStr, time, status: 'free', bookedCount: 0, capacity: 1, isFull: false } as ScheduleSlot
   }
   if (slot.status === 'past') return
+  if (bookingStore.isBeyondAdvanceWindow(slot.roomId, slot.date)) return
   if (slot.status === 'booked' && !isOwn(slot) && !authStore.isAdmin) return
   emit('slotClick', slot)
 }

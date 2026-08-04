@@ -177,7 +177,7 @@ const form = reactive({
 
 const today = startOfDay(new Date())
 const minDate = addDays(today, 1)
-const maxDate = addDays(today, 30)
+const maxDate = computed(() => addDays(today, bookingStore.advanceDaysFor(roomId)))
 
 const availableSlots = computed(() => {
   if (!selectedDate.value) return []
@@ -190,7 +190,7 @@ const availableDates = computed(() => {
   const slots = bookingStore.getSlotsForItem(roomId, null).filter((s: any) => s.booked < s.capacity)
   for (const slot of slots) {
     const d = new Date(`${slot.date}T00:00:00`)
-    if (d >= minDate && d <= maxDate) dates.add(slot.date)
+    if (d >= minDate && d <= maxDate.value) dates.add(slot.date)
   }
   return [...dates]
 })
@@ -213,6 +213,7 @@ onMounted(async () => {
   if (bookingStore.rooms.length === 0) {
     await bookingStore.fetchRooms()
   }
+  await bookingStore.fetchBookingSettings()
   await bookingStore.fetchSlots(roomId)
 })
 

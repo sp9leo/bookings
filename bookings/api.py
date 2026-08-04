@@ -17,7 +17,7 @@ def get_items(item_type=None):
         "Reservation Item",
         filters=filters,
         fields=["name", "item_name", "item_type", "class", "user", "is_active",
-                "subtitle", "group", "capacity", "location", "features"],
+                "subtitle", "group", "capacity",         "location", "features", "advance_booking_days"],
         order_by="item_name"
     )
     return items
@@ -356,6 +356,61 @@ def save_global_time_slots(slots):
     return {"success": True, "schedule": name, "slots": periods}
 
 
+def _get_booking_settings_doc():
+    """Return the Booking Settings single, creating it with defaults if missing."""
+    name = "Booking Settings"
+    if not frappe.db.exists("DocType", name):
+        return None
+    if not frappe.db.exists(name):
+        frappe.get_doc({"doctype": name}).insert(ignore_permissions=True)
+    return frappe.get_doc(name)
+
+
+@frappe.whitelist(allow_guest=True)
+def get_booking_settings():
+    """Get the global booking-window default (days an item can be booked in advance)."""
+    doc = _get_booking_settings_doc()
+    if not doc:
+        return {"default_advance_booking_days": 30}
+    return {
+        "default_advance_booking_days": int(doc.default_advance_booking_days or 30),
+    }
+
+
+@frappe.whitelist()
+def save_booking_settings(default_advance_booking_days=30):
+    """Save the global booking-window default."""
+    _require_admin()
+    doc = _get_booking_settings_doc()
+    if not doc:
+        frappe.throw("Booking Settings doctype not installed")
+    doc.default_advance_booking_days = int(default_advance_booking_days or 30)
+    if doc.default_advance_booking_days <= 0:
+        frappe.throw("Advance booking days must be positive")
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+    return {"success": True, "default_advance_booking_days": doc.default_advance_booking_days}
+
+
+def _effective_advance_days(item):
+    """How many days ahead an item can be booked (item override or global default)."""
+    item_days = frappe.db.get_value("Reservation Item", item, "advance_booking_days")
+    if item_days:
+        return int(item_days)
+    settings = _get_booking_settings_doc()
+    if settings and settings.default_advance_booking_days:
+        return int(settings.default_advance_booking_days)
+    return 30
+
+
+def _validate_booking_horizon(item, date_str):
+    """Reject bookings beyond the item's advance-booking window."""
+    from frappe.utils import add_days, getdate
+    horizon = _effective_advance_days(item)
+    if getdate(date_str) > getdate(add_days(frappe.utils.today(), horizon)):
+        frappe.throw(f"{item} can only be booked up to {horizon} days in advance")
+
+
 @frappe.whitelist()
 def get_or_create_slot(schedule, slot_date, period_number):
     """Get or create a schedule slot on-demand."""
@@ -677,6 +732,8 @@ def book_room_slot(room, date, start_time, end_time, notes=None,
     if not customer_email:
         customer_email = user
 
+    _validate_booking_horizon(room, date)
+
     start_hm = _time_of(start_time)
     end_hm = _time_of(end_time)
     if not start_hm:
@@ -836,7 +893,8 @@ def get_all_items():
     return frappe.get_all(
         "Reservation Item",
         fields=["name", "item_name", "item_type", "class", "user", "is_active",
-                "subtitle", "group", "capacity", "location", "features"],
+                "subtitle", "group", "capacity", "location", "features",
+                "advance_booking_days"],
         order_by="item_name"
     )
 
@@ -857,6 +915,7 @@ def create_item(data):
         "capacity": d.get("capacity") or 0,
         "location": d.get("location") or "",
         "features": d.get("features") or "",
+        "advance_booking_days": d.get("advance_booking_days") or 0,
         "is_active": 1 if d.get("is_active", 1) else 0,
     })
     doc.insert(ignore_permissions=True)
@@ -879,6 +938,7 @@ def update_item(name, data):
         "capacity": "capacity",
         "location": "location",
         "features": "features",
+        "advance_booking_days": "advance_booking_days",
         "is_active": "is_active",
     }.items():
         if key in d:

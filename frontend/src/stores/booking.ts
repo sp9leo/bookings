@@ -25,6 +25,7 @@ export interface Item {
   capacity?: number
   location?: string
   features?: string[]
+  advanceBookingDays?: number
 }
 
 export interface ItemGroup {
@@ -49,6 +50,7 @@ export interface Room {
   capacity: number
   location: string
   features: string[]
+  advanceBookingDays?: number
 }
 
 export interface RoomSlot {
@@ -168,6 +170,7 @@ function mapItem(apiItem: any): Item {
     features: typeof apiItem.features === 'string' && apiItem.features.trim()
       ? apiItem.features.split(',').map((f: string) => f.trim()).filter(Boolean)
       : [],
+    advanceBookingDays: Number(apiItem.advance_booking_days) || 0,
   }
 }
 
@@ -181,6 +184,7 @@ function mapRoom(apiItem: any): Room {
     capacity: apiItem.capacity || 0,
     location: apiItem.location || '',
     features,
+    advanceBookingDays: Number(apiItem.advance_booking_days) || 0,
   }
 }
 
@@ -306,6 +310,10 @@ export const useBookingStore = defineStore('booking', {
 
     timeSlots: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'],
 
+    timeSlotLabels: {} as Record<string, string>,
+
+    bookingSettings: { defaultAdvanceBookingDays: 30 },
+
     loading: false,
     error: '',
   }),
@@ -319,6 +327,23 @@ export const useBookingStore = defineStore('booking', {
       return state.rooms.find((room) => room.id === id)
     },
 
+    advanceDaysFor: (state) => (id: string) => {
+      const item = state.items.find((i) => i.id === id)
+      const room = state.rooms.find((r) => r.id === id)
+      const override = item?.advanceBookingDays || room?.advanceBookingDays || 0
+      return override > 0 ? override : state.bookingSettings.defaultAdvanceBookingDays
+    },
+
+    isBeyondAdvanceWindow: (state) => (id: string, dateStr: string) => {
+      const item = state.items.find((i) => i.id === id)
+      const room = state.rooms.find((r) => r.id === id)
+      const override = item?.advanceBookingDays || room?.advanceBookingDays || 0
+      const days = override > 0 ? override : state.bookingSettings.defaultAdvanceBookingDays
+      const horizon = new Date()
+      horizon.setDate(horizon.getDate() + days)
+      return new Date(`${dateStr}T00:00:00`) > horizon
+    },
+
     getSlotsForItem: (state) => (itemId: string, date: string | null) => {
       let slots = state.slots.filter((slot) => slot.itemId === itemId)
       if (date) {
@@ -328,7 +353,12 @@ export const useBookingStore = defineStore('booking', {
     },
 
     getAvailableSlotsCount: (state) => (itemId: string) => {
-      return state.slots.filter((slot) => slot.itemId === itemId && slot.booked < slot.capacity).length
+      const now = new Date()
+      return state.slots.filter((slot) => {
+        if (slot.itemId !== itemId) return false
+        if (slot.booked >= slot.capacity) return false
+        return new Date(`${slot.date}T${slot.from}`) >= now
+      }).length
     },
 
     getRoomSlotsForDate: (state) => (roomId: string, date: string | null) => {
@@ -540,9 +570,36 @@ export const useBookingStore = defineStore('booking', {
       const data = await apiGet<any>(`${API}.get_global_time_slots`)
       if (!data || !Array.isArray(data.slots)) return false
       this.globalScheduleName = data.schedule || ''
+      const labels: Record<string, string> = {}
       this.timeSlots = data.slots
-        .map((s: any) => timeOf(s.start_time))
+        .map((s: any) => {
+          const t = timeOf(s.start_time)
+          if (t) labels[t] = s.label || t
+          return t
+        })
         .filter(Boolean)
+        .sort()
+      this.timeSlotLabels = labels
+      this.fetchBookingSettings()
+      return true
+    },
+
+    async fetchBookingSettings(): Promise<void> {
+      const data = await apiGet<any>(`${API}.get_booking_settings`)
+      if (data && data.default_advance_booking_days) {
+        this.bookingSettings = { defaultAdvanceBookingDays: Number(data.default_advance_booking_days) || 30 }
+      }
+    },
+
+    async saveBookingSettings(defaultAdvanceBookingDays: number): Promise<boolean> {
+      try {
+        await apiPost<any>(`${API}.save_booking_settings`, { default_advance_booking_days: defaultAdvanceBookingDays })
+      } catch (e: any) {
+        this.error = e?.message || 'Could not save booking settings.'
+        return false
+      }
+      this.error = ''
+      this.bookingSettings = { defaultAdvanceBookingDays: Number(defaultAdvanceBookingDays) || 30 }
       return true
     },
 
@@ -554,7 +611,8 @@ export const useBookingStore = defineStore('booking', {
         return false
       }
       this.error = ''
-      this.timeSlots = [...times]
+      this.timeSlots = [...times].sort()
+      this.timeSlotLabels = Object.fromEntries(this.timeSlots.map((t) => [t, t]))
       return true
     },
 
@@ -1056,6 +1114,7 @@ export const useBookingStore = defineStore('booking', {
       if (data?.capacity !== undefined) itemData.capacity = data.capacity
       if (data?.location !== undefined) itemData.location = data.location
       if (data?.features !== undefined) itemData.features = (data.features || []).join(', ')
+      if (data?.advanceBookingDays !== undefined) itemData.advance_booking_days = data.advanceBookingDays
       const res = await safePost<any>(`${API}.update_item`, { name: id, data: itemData })
       if (!res?.success) return false
       await this.fetchAdminItems()

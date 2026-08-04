@@ -325,6 +325,7 @@ function handleSlotClick(slot: ScheduleSlot) {
 
     showEditModal.value = true
   } else if (slot.status === 'free') {
+    if (bookingStore.isBeyondAdvanceWindow(slot.roomId, slot.date)) return
     showModal.value = true
   }
 }

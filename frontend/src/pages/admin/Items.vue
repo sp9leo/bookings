@@ -63,6 +63,7 @@
             <th v-if="activeType !== 'Room'" class="px-4 py-3 font-semibold text-gray-600">Class</th>
             <th v-if="activeType !== 'Room'" class="px-4 py-3 font-semibold text-gray-600">Group</th>
             <th v-if="activeType === 'Person'" class="px-4 py-3 font-semibold text-gray-600">Assigned User</th>
+            <th class="px-4 py-3 font-semibold text-gray-600">Advance Days</th>
             <th class="px-4 py-3 font-semibold text-gray-600">Actions</th>
           </tr>
         </thead>
@@ -80,6 +81,7 @@
             <td v-if="activeType !== 'Room'" class="px-4 py-3 text-gray-500">{{ item.class }}</td>
             <td v-if="activeType !== 'Room'" class="px-4 py-3"><span v-if="getGroupName(item.groupId)" class="text-xs px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full">{{ getGroupName(item.groupId) }}</span></td>
             <td v-if="activeType === 'Person'" class="px-4 py-3 text-gray-500">{{ getUserName(item.userId) }}</td>
+            <td class="px-4 py-3 text-gray-500">{{ (item.advanceBookingDays ?? 0) > 0 ? item.advanceBookingDays + ' days' : 'Default' }}</td>
             <td class="px-4 py-3">
               <button @click="openEdit(item)" class="text-primary-600 hover:text-primary-800 text-xs font-semibold mr-3">Edit</button>
               <button @click="confirmDelete(item)" class="text-red-500 hover:text-red-700 text-xs font-semibold">Delete</button>
@@ -139,6 +141,10 @@
                   <option value="">— None —</option>
                   <option v-for="g in bookingStore.groups ?? []" :key="g.id" :value="g.id">{{ g.name }}</option>
                 </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Advance booking days (0 = use default)</label>
+                <input v-model.number="form.advanceDays" type="number" min="0" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
               </div>
             </div>
             <div class="flex gap-3">
@@ -215,6 +221,7 @@ const form = reactive({
   capacity: 10,
   location: '',
   featuresStr: '',
+  advanceDays: 0,
 })
 
 const newGroupName = ref('')
@@ -232,6 +239,7 @@ function resetForm() {
   form.capacity = 10
   form.location = ''
   form.featuresStr = ''
+  form.advanceDays = 0
 }
 
 function addGroup() {
@@ -261,6 +269,7 @@ function openEdit(item: any) {
   form.capacity = item.capacity || 10
   form.location = item.location || ''
   form.featuresStr = (item.features || []).join(', ')
+  form.advanceDays = item.advanceBookingDays || 0
   showModal.value = true
 }
 
@@ -289,6 +298,7 @@ async function handleSave() {
   if (activeType.value === 'Room') {
     data.features = parseFeatures(form.featuresStr)
   }
+  data.advanceBookingDays = form.advanceDays || 0
   if (editingItem.value) {
     await bookingStore.updateItem(editingItem.value.id, data)
   } else {

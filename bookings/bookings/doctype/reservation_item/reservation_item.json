@@ -17,6 +17,7 @@
   "capacity",
   "location",
   "features",
+  "advance_booking_days",
   "is_active",
   "route"
  ],
@@ -74,6 +75,13 @@
    "fieldname": "features",
    "fieldtype": "Data",
    "label": "Features (comma-separated)"
+  },
+  {
+   "fieldname": "advance_booking_days",
+   "fieldtype": "Int",
+   "label": "Advance Booking Days",
+   "description": "How far in advance this item can be booked (days). 0 uses the Booking Settings default.",
+   "default": "0"
   },
   {
    "fieldname": "is_active",
