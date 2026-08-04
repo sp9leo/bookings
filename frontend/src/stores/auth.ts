@@ -58,7 +58,7 @@ export const useAuthStore = defineStore('auth', {
         id: info.user,
         email: info.user,
         name: info.full_name || info.user,
-        color: colorForName(info.full_name || info.user),
+        color: info.bookings_color || colorForName(info.full_name || info.user),
         role,
       }
       this.currentUser = user

@@ -464,11 +464,16 @@ def get_current_user():
 
     roles = frappe.get_roles(user)
 
+    bookings_color = None
+    if frappe.db.has_column("User", "bookings_color"):
+        bookings_color = frappe.get_value("User", user, "bookings_color")
+
     return {
         "user": user,
         "full_name": full_name,
         "email": user,
         "roles": roles,
+        "bookings_color": bookings_color,
     }
 
 
@@ -935,13 +940,16 @@ def delete_group(name):
 def get_users():
     """List enabled users holding the Bookings Manager or Bookings User role."""
     _require_admin()
+    fields = ["name", "full_name", "email"]
+    has_color = frappe.db.has_column("User", "bookings_color")
+    if has_color:
+        fields.append("bookings_color")
     users = frappe.get_all(
         "User",
         filters={"enabled": 1, "name": ["not in", ["Guest"]]},
-        fields=["name", "full_name", "email"],
+        fields=fields,
         order_by="full_name asc"
     )
-    has_color = frappe.db.has_column("User", "bookings_color")
     result = []
     for u in users:
         roles = frappe.get_roles(u.name)
