@@ -93,6 +93,7 @@ def cancel_reservation(access_token):
     slot_doc.save(ignore_permissions=True)
     
     reservation.status = "Cancelled"
+    reservation.cancellation_reason = "Cancelled by customer"
     reservation.save(ignore_permissions=True)
     
     return {"success": True, "message": "Reservation cancelled"}
