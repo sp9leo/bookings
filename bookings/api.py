@@ -1083,8 +1083,10 @@ def delete_group(name):
 
 @frappe.whitelist()
 def get_users():
-    """List enabled users holding the Bookings Manager or Bookings User role."""
-    _require_admin()
+    """List enabled users holding the Bookings Manager or Bookings User role.
+
+    Available to any logged-in user so the schedule can show booker colors.
+    """
     fields = ["name", "full_name", "email"]
     has_color = frappe.db.has_column("User", "bookings_color")
     if has_color:
