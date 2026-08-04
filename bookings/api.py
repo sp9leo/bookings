@@ -130,7 +130,9 @@ def _add_hour(time_str):
 def _time_of(value):
     if not value:
         return ""
-    return str(value).split(" ")[-1][:5]
+    time_str = str(value).split(" ")[-1].strip()
+    parts = time_str.split(":")
+    return f"{int(parts[0]):02d}:{parts[1]}"
 
 
 def _times_to_periods(times):
