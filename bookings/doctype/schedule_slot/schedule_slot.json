@@ -1,0 +1,110 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+  "autoname": "SCHSLOT-.####",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+  "field_order": [
+   "schedule",
+   "reservation_item",
+   "slot_date",
+   "period_number",
+   "start_time",
+   "end_time",
+   "status",
+   "booking_ref",
+   "booked_by",
+   "description"
+  ],
+ "fields": [
+  {
+   "fieldname": "schedule",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Schedule",
+   "options": "Schedule"
+  },
+  {
+   "fieldname": "reservation_item",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item",
+   "options": "Reservation Item"
+  },
+  {
+   "fieldname": "slot_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date"
+  },
+  {
+   "fieldname": "period_number",
+   "fieldtype": "Int",
+   "label": "Period"
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Start"
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "End"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Free\nBooked"
+  },
+  {
+   "fieldname": "booking_ref",
+   "fieldtype": "Data",
+   "label": "Booking Reference"
+  },
+  {
+   "fieldname": "booked_by",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Booked By"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Description"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-22 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bookings",
+ "name": "Schedule Slot",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "slot_date",
+ "sort_order": "DESC",
+ "states": []
+}
