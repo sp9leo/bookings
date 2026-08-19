@@ -1,7 +1,7 @@
 {
  "app": "bookings",
  "charts": [],
- "content": "[{\"id\":\"nPeYxlB4aS\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Bookings</span>\",\"col\":12}},{\"id\":\"gK7jM2pR1q\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Reservation\",\"col\":3}},{\"id\":\"hL8kN3qS2r\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Reservation Item\",\"col\":3}},{\"id\":\"jN0mP5sU4t\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Room Booking\",\"col\":3}},{\"id\":\"kO1nQ6tV5u\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Schedule\",\"col\":3}},{\"id\":\"lP2oR7uW6v\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item Group\",\"col\":3}}]",
+ "content": "[{\"id\":\"nPeYxlB4aS\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Bookings</span>\",\"col\":12}},{\"id\":\"gK7jM2pR1q\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Reservation\",\"col\":3}},{\"id\":\"hL8kN3qS2r\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Reservation Item\",\"col\":3}},{\"id\":\"jN0mP5sU4t\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Room Booking\",\"col\":3}},{\"id\":\"kO1nQ6tV5u\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Schedule\",\"col\":3}},{\"id\":\"mQ3pS8vX7w\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Schedule Slot\",\"col\":3}},{\"id\":\"nR4qT9wY8x\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Available Slot\",\"col\":3}},{\"id\":\"lP2oR7uW6v\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item Group\",\"col\":3}}]",
  "creation": "2026-02-01 09:00:00.000000",
  "custom_blocks": [],
  "docstatus": 0,
@@ -105,23 +105,39 @@
    "stats_filter": "[]",
    "type": "DocType"
   },
-  {
-   "color": "Purple",
-   "doc_view": "List",
-   "label": "Schedule",
-   "link_to": "Schedule",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
-   "color": "Green",
-   "doc_view": "List",
-   "label": "Item Group",
-   "link_to": "Item Group",
-   "stats_filter": "[]",
-   "type": "DocType"
-  }
- ],
+   {
+    "color": "Purple",
+    "doc_view": "List",
+    "label": "Schedule",
+    "link_to": "Schedule",
+    "stats_filter": "[]",
+    "type": "DocType"
+   },
+   {
+    "color": "Teal",
+    "doc_view": "List",
+    "label": "Schedule Slot",
+    "link_to": "Schedule Slot",
+    "stats_filter": "[]",
+    "type": "DocType"
+   },
+   {
+    "color": "Yellow",
+    "doc_view": "List",
+    "label": "Available Slot",
+    "link_to": "Available Slot",
+    "stats_filter": "[]",
+    "type": "DocType"
+   },
+   {
+    "color": "Green",
+    "doc_view": "List",
+    "label": "Item Group",
+    "link_to": "Item Group",
+    "stats_filter": "[]",
+    "type": "DocType"
+   }
+  ],
  "title": "Bookings",
  "type": "Workspace"
 }
