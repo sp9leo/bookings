@@ -210,6 +210,11 @@ def get_or_create_room_schedule(room):
 
 _DEFAULT_GLOBAL_TIMES = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]
 
+# The single Schedule that defines the room time-slot list for the whole app.
+# reservation_item must stay empty: a Schedule with an item is a per-room
+# schedule, which _sync_room_schedules() overwrites from the global one.
+_GLOBAL_SCHEDULE_FILTER = {"applies_to": "Room", "reservation_item": ("is", "not set")}
+
 
 def _add_hour(time_str):
     hour, minute = (time_str or "00:00").split(":")
@@ -245,16 +250,26 @@ def _default_periods():
     return _times_to_periods(_DEFAULT_GLOBAL_TIMES)
 
 
-def _global_periods():
-    """Return the current global time-slot periods, falling back to defaults."""
-    name = frappe.db.get_value(
+def _global_schedule_rows():
+    """Every Schedule that qualifies as the global room time-slot list, newest first."""
+    return frappe.get_all(
         "Schedule",
-        {"applies_to": "Room", "reservation_item": ("is", "not set")},
-        "name",
+        filters=_GLOBAL_SCHEDULE_FILTER,
+        fields=["name"],
+        order_by="creation desc",
     )
-    if not name:
+
+
+def _global_periods():
+    """Return the current global time-slot periods, falling back to defaults.
+
+    Read-only: deliberately uses _global_schedule_rows() rather than
+    _global_schedule_name() so it never creates a Schedule as a side effect.
+    """
+    rows = _global_schedule_rows()
+    if not rows:
         return _default_periods()
-    doc = frappe.get_doc("Schedule", name)
+    doc = frappe.get_doc("Schedule", rows[0]["name"])
     return [
         {
             "period_number": p.period_number,
@@ -287,25 +302,39 @@ def _schedule_with_periods(schedule):
 
 
 def _global_schedule_name():
-    name = frappe.db.get_value(
-        "Schedule",
-        {"applies_to": "Room", "reservation_item": ("is", "not set")},
-        "name",
-    )
-    if name:
-        return name
+    """Resolve the one Schedule that holds the global room time-slot list.
 
-    schedule = frappe.get_doc({
-        "doctype": "Schedule",
-        "applies_to": "Room",
-        "reservation_item": None,
-        "schedule_periods": [
-            {"doctype": "Schedule Periods", **period}
-            for period in _default_periods()
-        ],
-    })
-    schedule.insert(ignore_permissions=True)
-    return schedule.name
+    Ordering matters: frappe.db.get_value without order_by returned whichever row
+    the storage engine happened to yield, so a newly created Schedule could be
+    ignored in favour of the oldest. Newest-by-creation is stable across writes
+    (save_global_time_slots changes modified, never creation).
+    """
+    rows = _global_schedule_rows()
+    if not rows:
+        schedule = frappe.get_doc({
+            "doctype": "Schedule",
+            "applies_to": "Room",
+            "reservation_item": None,
+            "schedule_periods": [
+                {"doctype": "Schedule Periods", **period}
+                for period in _default_periods()
+            ],
+        })
+        schedule.insert(ignore_permissions=True)
+        return schedule.name
+
+    if len(rows) > 1:
+        frappe.log_error(
+            title="Duplicate global room schedules",
+            message=(
+                "Schedules matching applies_to='Room' AND reservation_item is empty: "
+                f"{[r['name'] for r in rows]}. "
+                f"Using {rows[0]['name']} (newest). Delete the others, or the edits "
+                "made to them will never reach the app."
+            ),
+        )
+
+    return rows[0]["name"]
 
 
 def _periods_match(existing, target):
@@ -342,12 +371,32 @@ def _sync_room_schedules():
         filters={"applies_to": "Room", "reservation_item": ("is", "set")},
         fields=["name"],
     )
+    overwritten = []
     for row in room_schedules:
         doc = frappe.get_doc("Schedule", row.name)
         if _periods_match(doc.schedule_periods, periods):
             continue
+        # These schedules exist only to mirror the global list, so overwriting is
+        # correct -- but the user never asked for it, and a hand-made room
+        # schedule silently reverting looks exactly like "the app ignored my
+        # edit". Surface it.
+        overwritten.append({
+            "schedule": doc.name,
+            "reservation_item": doc.reservation_item,
+            "reverted_to": [_time_of(p.start_time) for p in periods],
+        })
         _replace_schedule_periods(doc, periods)
         doc.save(ignore_permissions=True)
+
+    if overwritten:
+        frappe.log_error(
+            title="Room schedules reset to the global time slots",
+            message=(
+                f"{len(overwritten)} per-room schedule(s) had periods that differed "
+                f"from global schedule {global_name} and were rewritten. If you "
+                f"hand-edited them, those edits are gone.\n{overwritten}"
+            ),
+        )
 
 
 def _cancel_bookings_for_removed_times(times):
@@ -407,17 +456,34 @@ def get_global_time_slots():
     except Exception:
         frappe.log_error(frappe.get_traceback(), "sync room schedules from global slots")
     doc = frappe.get_doc("Schedule", name)
+    slots = [
+        {
+            "period_number": p.period_number,
+            "start_time": p.start_time,
+            "end_time": p.end_time,
+            "label": p.label,
+        }
+        for p in doc.schedule_periods
+    ]
+
+    if not slots:
+        # No fallback here (unlike _global_periods) on purpose: silently serving
+        # the built-in defaults would hide a Schedule someone emptied by mistake.
+        frappe.log_error(
+            title="Global room schedule has no periods",
+            message=(
+                f"Schedule {name} (applies_to=Room, reservation_item empty) has zero "
+                "Schedule Periods rows, so every room view renders no time slots. "
+                "Add periods to it, or save them from the admin Time Slots page."
+            ),
+        )
+
     return {
         "schedule": name,
-        "slots": [
-            {
-                "period_number": p.period_number,
-                "start_time": p.start_time,
-                "end_time": p.end_time,
-                "label": p.label,
-            }
-            for p in doc.schedule_periods
-        ],
+        "slots": slots,
+        # Every Schedule that could have been used, so the UI can flag ambiguity
+        # instead of the admin wondering why their edit is ignored.
+        "candidates": [r["name"] for r in _global_schedule_rows()],
     }
 
 
