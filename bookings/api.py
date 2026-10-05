@@ -5,6 +5,8 @@ from datetime import datetime
 
 import frappe
 
+from bookings.setup import ROLE_BOOKINGS_MANAGER, ROLE_BOOKINGS_USER
+
 
 @frappe.whitelist(allow_guest=True)
 def get_items(item_type=None):
@@ -163,6 +165,7 @@ def cancel_reservation(access_token):
 @frappe.whitelist()
 def get_schedules(item_type=None):
     """Get all schedules, optionally filtered by item type."""
+    _require_bookings_user()
     from bookings.bookings.doctype.schedule.schedule import get_schedules
     return get_schedules(item_type=item_type)
 
@@ -170,6 +173,7 @@ def get_schedules(item_type=None):
 @frappe.whitelist()
 def get_schedule_for_room(item, start_date=None, end_date=None):
     """Get schedule slots for a room within a date range."""
+    _require_bookings_user()
     from bookings.bookings.doctype.schedule_slot.schedule_slot import get_schedule_slots
     return get_schedule_slots(item=item, start_date=start_date, end_date=end_date)
 
@@ -177,6 +181,7 @@ def get_schedule_for_room(item, start_date=None, end_date=None):
 @frappe.whitelist()
 def get_or_create_room_schedule(room):
     """Get the schedule for a room, creating a default one if none exists."""
+    _require_bookings_user()
     existing = frappe.db.get_value(
         "Schedule", {"reservation_item": room, "applies_to": "Room"}, "name"
     )
@@ -395,6 +400,7 @@ def _cancel_bookings_for_removed_times(times):
 @frappe.whitelist()
 def get_global_time_slots():
     """Get the global room time-slot list (single source of truth for room views)."""
+    _require_bookings_user()
     name = _global_schedule_name()
     try:
         _sync_room_schedules()
@@ -498,6 +504,7 @@ def _validate_booking_horizon(item, date_str):
 @frappe.whitelist()
 def get_or_create_slot(schedule, slot_date, period_number):
     """Get or create a schedule slot on-demand."""
+    _require_bookings_user()
     from bookings.bookings.doctype.schedule_slot.schedule_slot import get_or_create_slot as get_create
     return get_create(schedule, slot_date, period_number)
 
@@ -505,6 +512,7 @@ def get_or_create_slot(schedule, slot_date, period_number):
 @frappe.whitelist()
 def book_room(schedule_slot, notes=None):
     """Book a room from a schedule slot."""
+    _require_bookings_user()
     from bookings.bookings.doctype.room_booking.room_booking import create_room_booking
     return create_room_booking(schedule_slot, notes)
 
@@ -512,6 +520,8 @@ def book_room(schedule_slot, notes=None):
 @frappe.whitelist()
 def cancel_room_booking(booking_ref, scope="this"):
     """Cancel a room booking (optionally its recurring series)."""
+    _require_bookings_user()
+    _require_booking_access(booking_ref)
     from bookings.bookings.doctype.room_booking.room_booking import cancel_room_booking as cancel_rb
     return cancel_rb(booking_ref, scope)
 
@@ -519,6 +529,7 @@ def cancel_room_booking(booking_ref, scope="this"):
 @frappe.whitelist()
 def get_my_room_bookings():
     """Get current user's room bookings."""
+    _require_bookings_user()
     from bookings.bookings.doctype.room_booking.room_booking import get_my_bookings
     return get_my_bookings()
 
@@ -533,6 +544,7 @@ def lookup_room_booking(email, booking_ref):
 @frappe.whitelist()
 def get_my_session_reservations():
     """Get current user's session reservations."""
+    _require_bookings_user()
     email = frappe.session.user
     from bookings.bookings.doctype.reservation.reservation import get_reservations_by_email
     return get_reservations_by_email(email)
@@ -541,6 +553,7 @@ def get_my_session_reservations():
 @frappe.whitelist()
 def get_my_tutor_bookings():
     """Get bookings for items owned by current user as tutor."""
+    _require_bookings_user()
     user = frappe.session.user
     from bookings.bookings.doctype.reservation.reservation import get_tutor_reservations
     return get_tutor_reservations(user)
@@ -549,6 +562,7 @@ def get_my_tutor_bookings():
 @frappe.whitelist()
 def get_item_reservations(item):
     """Get all reservations for an item (admin or item owner)."""
+    _require_bookings_user()
     _require_can_manage(item)
     return frappe.get_all(
         "Reservation",
@@ -596,11 +610,22 @@ def get_all_room_bookings():
 
 @frappe.whitelist()
 def get_current_user():
-    """Get the current logged-in user info (or Guest)."""
+    """Get the current logged-in user info (or Guest).
+
+    Intentionally does NOT require a Bookings role: the frontend needs the role
+    list to explain *why* access was refused, and `is_bookings_user` tells it
+    whether to admit or deny the session. Every other endpoint is gated.
+    """
     user = frappe.session.user
 
     if user == "Guest":
-        return {"user": "Guest", "full_name": "Guest", "email": "", "roles": []}
+        return {
+            "user": "Guest",
+            "full_name": "Guest",
+            "email": "",
+            "roles": [],
+            "is_bookings_user": False,
+        }
 
     full_name = frappe.get_value("User", user, "full_name") or user
 
@@ -615,6 +640,8 @@ def get_current_user():
         "full_name": full_name,
         "email": user,
         "roles": roles,
+        "is_bookings_user": bool(BOOKINGS_APP_ROLES.intersection(roles)),
+        "is_admin": "System Manager" in roles or ROLE_BOOKINGS_MANAGER in roles,
         "bookings_color": bookings_color,
     }
 
@@ -631,6 +658,7 @@ def update_booking_time(booking_ref, new_start_time, new_end_time, scope="this")
     )
 
     booking = frappe.get_doc("Room Booking", {"booking_ref": booking_ref})
+    _require_booking_access(booking_ref, booking)
 
     if booking.status == "Cancelled":
         frappe.throw("Cannot move a cancelled booking")
@@ -685,6 +713,7 @@ def update_booking_details(booking_ref, notes=None, customer_name=None, scope="t
     from bookings.bookings.doctype.room_booking.room_booking import _scope_targets
 
     booking = frappe.get_doc("Room Booking", {"booking_ref": booking_ref})
+    _require_booking_access(booking_ref, booking)
 
     if booking.status == "Cancelled":
         frappe.throw("Cannot edit a cancelled booking")
@@ -709,6 +738,8 @@ def update_recurrence(booking_ref, frequency=None, interval=None, until_date=Non
     An empty frequency/until_date detaches the affected members so they become
     independent single bookings.
     """
+    _require_bookings_user()
+    _require_booking_access(booking_ref)
     from bookings.bookings.doctype.room_booking.room_booking import update_recurring_group
     return update_recurring_group(booking_ref, frequency, interval, until_date, scope)
 
@@ -721,6 +752,7 @@ def get_room_available_slots(room, start_date, end_date):
     returned as lightweight placeholders so the frontend can render the full grid
     without creating rows until a booking actually happens.
     """
+    _require_bookings_user()
     from frappe.utils import add_days
     from bookings.bookings.doctype.room_booking.room_booking import (
         _slot_booked_rooms,
@@ -810,11 +842,14 @@ def book_room_slot(room, date, start_time, end_time, notes=None,
         _insert_room_booking,
     )
 
+    _require_bookings_user()
+
     user = frappe.session.user
     if not customer_name:
         customer_name = frappe.get_value("User", user, "full_name") or user
     if not customer_email:
         customer_email = user
+    _require_self_or_admin(customer_email)
 
     _validate_booking_horizon(room, date)
 
@@ -848,6 +883,9 @@ def book_room_recurring(room, dates, start_time, end_time, notes=None,
 
     from bookings.bookings.doctype.room_booking.room_booking import generate_booking_ref
 
+    _require_bookings_user()
+    _require_self_or_admin(customer_email)
+
     if isinstance(dates, str):
         try:
             dates = json.loads(dates)
@@ -878,7 +916,15 @@ def book_room_recurring(room, dates, start_time, end_time, notes=None,
 @frappe.whitelist()
 def update_slot_details(slot, description=None, booked_by=None):
     """Update description and booked-by info on a schedule slot."""
+    _require_bookings_user()
     slot_doc = frappe.get_doc("Schedule Slot", slot)
+
+    if not _is_admin():
+        owner = slot_doc.booked_by or frappe.db.get_value(
+            "Room Booking", {"booking_ref": slot_doc.booking_ref}, "customer_email"
+        )
+        if owner != frappe.session.user:
+            frappe.throw("Not permitted", frappe.PermissionError)
 
     if description is not None:
         slot_doc.description = description
@@ -898,6 +944,12 @@ def update_slot_details(slot, description=None, booked_by=None):
 def create_recurring_room_bookings(schedule, dates, period_number, notes=None):
     """Create room bookings across multiple dates for the same period."""
     import json
+
+    _require_bookings_user()
+
+    schedule_item = frappe.db.get_value("Schedule", schedule, "reservation_item")
+    if schedule_item:
+        _require_can_manage(schedule_item)
 
     if isinstance(dates, str):
         try:
@@ -926,11 +978,29 @@ def create_recurring_room_bookings(schedule, dates, period_number, notes=None):
 
 
 # ---------------------------------------------------------------------------
-# Admin endpoints (require System Manager / Bookings Manager role)
+# Access control
 # ---------------------------------------------------------------------------
 
+# Roles that may use the Bookings app at all. Mirrors the frontend gate and the
+# membership rule used by get_users().
+BOOKINGS_APP_ROLES = frozenset({"System Manager", ROLE_BOOKINGS_MANAGER, ROLE_BOOKINGS_USER})
+
+
 def _is_admin():
-    return "System Manager" in frappe.get_roles() or "Bookings Manager" in frappe.get_roles()
+    return "System Manager" in frappe.get_roles() or ROLE_BOOKINGS_MANAGER in frappe.get_roles()
+
+
+def _is_bookings_user():
+    """True when the session belongs to a member of the Bookings app."""
+    if frappe.session.user == "Guest":
+        return False
+    return bool(BOOKINGS_APP_ROLES.intersection(frappe.get_roles()))
+
+
+def _require_bookings_user():
+    """Reject anyone without a Bookings app role, including anonymous sessions."""
+    if not _is_bookings_user():
+        frappe.throw("Not permitted", frappe.PermissionError)
 
 
 def _require_admin():
@@ -945,6 +1015,46 @@ def _require_can_manage(item):
     owner = frappe.db.get_value("Reservation Item", item, "user")
     if owner != frappe.session.user:
         frappe.throw("Not permitted", frappe.PermissionError)
+
+
+def _require_booking_access(booking_ref, booking=None):
+    """Allow a booking's own customer (or any admin) to act on it.
+
+    Without this, any logged-in user can read or mutate an arbitrary booking by
+    guessing or leaking a booking_ref.
+    """
+    if _is_admin():
+        return
+    doc = booking or frappe.get_doc("Room Booking", {"booking_ref": booking_ref})
+    if (doc.customer_email or "") != frappe.session.user:
+        frappe.throw("Not permitted", frappe.PermissionError)
+
+
+def _require_self_or_admin(customer_email):
+    """Stop a member creating bookings attributed to someone else.
+
+    Admins may book on behalf of anyone (used by the admin schedule UI); regular
+    members may only ever book as themselves.
+    """
+    if _is_admin():
+        return
+    if (customer_email or frappe.session.user) != frappe.session.user:
+        frappe.throw("Not permitted", frappe.PermissionError)
+
+
+def _add_role(user_doc, role_name):
+    """Add a role to a User doc if not already present."""
+    if any((r.role == role_name) for r in user_doc.get("roles") or []):
+        return
+    user_doc.append("roles", {"role": role_name})
+
+
+def _remove_role(user_doc, role_name):
+    """Remove a role from a User doc if present."""
+    roles = user_doc.get("roles")
+    if not roles:
+        return
+    user_doc.roles = [r for r in roles if r.role != role_name]
 
 
 def _coerce_list(value):
@@ -1095,8 +1205,11 @@ def delete_group(name):
 def get_users():
     """List enabled users holding the Bookings Manager or Bookings User role.
 
-    Available to any logged-in user so the schedule can show booker colors.
+    Restricted to Bookings app members: this exposes user names and emails, so it
+    must not be reachable by arbitrary authenticated Frappe accounts. The full
+    role list is intentionally omitted — callers only need `is_admin`.
     """
+    _require_bookings_user()
     fields = ["name", "full_name", "email"]
     has_color = frappe.db.has_column("User", "bookings_color")
     if has_color:
@@ -1110,14 +1223,13 @@ def get_users():
     result = []
     for u in users:
         roles = frappe.get_roles(u.name)
-        is_manager = "Bookings Manager" in roles
-        if not is_manager and "Bookings User" not in roles:
+        is_manager = "System Manager" in roles or ROLE_BOOKINGS_MANAGER in roles
+        if not is_manager and ROLE_BOOKINGS_USER not in roles:
             continue
         result.append({
             "name": u.name,
             "email": u.email or u.name,
             "full_name": u.full_name or u.name,
-            "roles": roles,
             "is_admin": is_manager,
             "bookings_color": u.get("bookings_color") if has_color else None,
         })
@@ -1126,7 +1238,7 @@ def get_users():
 
 @frappe.whitelist()
 def create_user(email, full_name=None, password=None, role="user"):
-    """Create a Frappe user. role = 'admin' assigns System Manager."""
+    """Create a Frappe user. role = 'admin' assigns Bookings Manager."""
     _require_admin()
     email = (email or "").strip()
     if not email:
@@ -1142,26 +1254,25 @@ def create_user(email, full_name=None, password=None, role="user"):
     })
     if password:
         doc.new_password = password
-    if role == "admin":
-        doc.append("roles", {"role": "System Manager"})
+    # Assign an actual Bookings role, otherwise the new account cannot sign in to
+    # the app at all (every non-guest endpoint requires one).
+    _add_role(doc, ROLE_BOOKINGS_MANAGER if role == "admin" else ROLE_BOOKINGS_USER)
     doc.insert(ignore_permissions=True)
     return {"success": True, "name": email}
 
 
 @frappe.whitelist()
 def update_user(name, full_name=None, role=None):
-    """Update a Frappe user's full name and admin role."""
+    """Update a Frappe user's full name and Bookings role."""
     _require_admin()
     doc = frappe.get_doc("User", name)
     if full_name is not None:
         doc.first_name = (full_name or name).strip()
     if role is not None:
-        has_sm = any((r.role == "System Manager") for r in doc.roles)
-        want_sm = role == "admin"
-        if want_sm and not has_sm:
-            doc.append("roles", {"role": "System Manager"})
-        elif not want_sm and has_sm:
-            doc.roles = [r for r in doc.roles if r.role != "System Manager"]
+        want_manager = role == "admin"
+        _remove_role(doc, ROLE_BOOKINGS_MANAGER)
+        # Demoting keeps app access (as a member) rather than revoking it.
+        _add_role(doc, ROLE_BOOKINGS_MANAGER if want_manager else ROLE_BOOKINGS_USER)
     doc.save(ignore_permissions=True)
     return {"success": True}
 
@@ -1253,6 +1364,7 @@ def _create_slots(items, dates, start_time, end_time, duration, capacity=None):
 @frappe.whitelist()
 def delete_available_slot(name):
     """Delete an Available Slot. Returns has_bookings if it has bookings."""
+    _require_bookings_user()
     item = frappe.db.get_value("Available Slot", name, "reservation_item")
     _require_can_manage(item)
     booked = frappe.db.get_value("Available Slot", name, "booked") or 0
