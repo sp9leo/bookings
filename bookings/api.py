@@ -8,6 +8,27 @@ import frappe
 from bookings.setup import ROLE_BOOKINGS_MANAGER, ROLE_BOOKINGS_USER
 
 
+def _attach_group_names(items):
+    """Resolve each item's Item Group link to its display name.
+
+    get_items is guest-accessible but get_groups is admin-only, so the public
+    booking page needs the resolved name inline on the item payload.
+    """
+    group_ids = {i.get("group") for i in items if i.get("group")}
+    names = {}
+    if group_ids:
+        names = dict(
+            frappe.db.get_all(
+                "Item Group",
+                filters={"name": ["in", list(group_ids)]},
+                fields=["name", "group_name"],
+                as_list=True,
+            )
+        )
+    for i in items:
+        i["group_name"] = (names.get(i.get("group")) or "") if i.get("group") else ""
+
+
 @frappe.whitelist(allow_guest=True)
 def get_items(item_type=None):
     """Get all active reservation items."""
@@ -22,6 +43,7 @@ def get_items(item_type=None):
                 "subtitle", "group", "capacity",         "location", "features", "advance_booking_days"],
         order_by="item_name"
     )
+    _attach_group_names(items)
     return items
 
 
@@ -1150,13 +1172,15 @@ def _item_booking_count(item):
 def get_all_items():
     """Get all reservation items (admin: includes inactive, full fields)."""
     _require_admin()
-    return frappe.get_all(
+    items = frappe.get_all(
         "Reservation Item",
         fields=["name", "item_name", "item_type", "class", "user", "is_active",
                 "subtitle", "group", "capacity", "location", "features",
                 "advance_booking_days"],
         order_by="item_name"
     )
+    _attach_group_names(items)
+    return items
 
 
 @frappe.whitelist()
