@@ -47,6 +47,18 @@ def get_items(item_type=None):
     return items
 
 
+@frappe.whitelist()
+def get_item_class_options():
+    """Return the current Class Select options on Reservation Item.
+
+    The doctype JSON is source-controlled, so option changes are applied through
+    Property Setter instead. Read from meta so those overrides are reflected.
+    """
+    _require_admin()
+    options = frappe.get_meta("Reservation Item").get_field("class").options or ""
+    return [o for o in options.split("\n") if o]
+
+
 @frappe.whitelist(allow_guest=True)
 def get_teachers():
     """Get all active teachers/persons."""
