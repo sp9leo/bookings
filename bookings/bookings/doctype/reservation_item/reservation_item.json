@@ -44,7 +44,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Class",
-   "options": "\n--\n1. a\n1. b\n1. nis\n2. a\n2. b\n2. nis\n3. a\n3. b\n3. nis\n4. a\n4. b\n4. nis\n5. a\n5. b\n5. nis\n6. a\n6. b\n6. nis\n7. a\n7. b\n7. nis\n8. a\n8. b\n8. nis\n9"
+   "options": "\n1. a\n1. b\n1. nis\n2. a\n2. b\n2. nis\n3. a\n3. b\n3. nis\n4. a\n4. b\n4. nis\n5. a\n5. b\n5. nis\n6. a\n6. b\n6. nis\n7. a\n7. b\n7. nis\n8. a\n8. b\n8. nis\n9"
   },
   {
    "fieldname": "user",
