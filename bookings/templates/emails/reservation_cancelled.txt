@@ -1,0 +1,14 @@
+Rezervacija preklicana
+
+Pozdravljeni, {{ customer_name }}!
+
+Vaša rezervacija je bila preklicana. Podrobnosti preklicanega termina:
+Termin z: {{ item_name }}
+Datum: {{ date_str }}
+Ura: {{ time_from }} - {{ time_to }}
+Referenčna številka: {{ booking_ref }}
+
+Če rezervacije niste preklicali vi, se obrnite na nas. Referenčna številka ni več aktivna.
+
+Poglej moje rezervacije:
+{{ manage_url }}

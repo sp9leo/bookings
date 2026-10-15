@@ -1,0 +1,12 @@
+Potrditev rezervacije
+
+Pozdravljeni, {{ customer_name }}!
+
+Vaša rezervacija je potrjena. Podrobnosti:
+Termin z: {{ item_name }}
+Datum: {{ date_str }}
+Ura: {{ time_from }} - {{ time_to }}
+Referenčna številka: {{ booking_ref }}
+
+Referenčno številko shranite, da si boste rezervacijo lahko pozneje ogledali ali jo preklicali:
+{{ manage_url }}

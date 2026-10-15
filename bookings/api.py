@@ -163,76 +163,92 @@ def _format_slovenian_date(dt):
     )
 
 
-def _send_reservation_confirmation(result, customer_email):
-    """Send a confirmation email for a public booking (best-effort, never blocks)."""
+def _reservation_email_context(doc):
+    """Build the Jinja context shared by reservation emails."""
+    item = frappe.db.get_value(
+        "Reservation Item",
+        doc.reservation_item,
+        ["item_name", "item_type"],
+        as_dict=True,
+    )
+    item_name = (item.item_name if item else "") or doc.reservation_item
+    item_type = (item.item_type if item else "") or ""
+
+    manage_path = "/rooms/my" if item_type == "Room" else "/book/my"
+    from_time = frappe.utils.get_datetime(doc.from_time)
+    to_time = frappe.utils.get_datetime(doc.to_time)
+
+    return {
+        "customer_name": frappe.utils.cstr(doc.customer_name),
+        "item_name": frappe.utils.cstr(item_name),
+        "date_str": _format_slovenian_date(from_time),
+        "time_from": from_time.strftime("%H:%M"),
+        "time_to": to_time.strftime("%H:%M"),
+        "booking_ref": frappe.utils.cstr(doc.booking_ref),
+        "manage_url": frappe.utils.get_url() + manage_path,
+    }
+
+
+def _is_valid_email(email):
     import re
 
+    return bool(re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", email or ""))
+
+
+def _send_reservation_confirmation(result, customer_email):
+    """Send a confirmation email for a public booking (best-effort, never blocks)."""
     if not result or not result.get("name"):
         return
-    if not re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", customer_email or ""):
+    if not _is_valid_email(customer_email):
         return
     try:
         doc = frappe.db.get_value(
             "Reservation",
             result["name"],
-            ["customer_name", "booking_ref", "from_time", "to_time", "reservation_item"],
+            ["name", "customer_name", "booking_ref", "from_time", "to_time", "reservation_item"],
             as_dict=True,
         )
         if not doc:
             return
-        item = frappe.db.get_value(
-            "Reservation Item",
-            doc.reservation_item,
-            ["item_name", "item_type"],
-            as_dict=True,
-        )
-        item_name = (item.item_name if item else "") or doc.reservation_item
-        item_type = (item.item_type if item else "") or ""
-
-        manage_path = "/rooms/my" if item_type == "Room" else "/book/my"
-        manage_url = frappe.utils.get_url() + manage_path
-
-        from_time = frappe.utils.get_datetime(doc.from_time)
-        to_time = frappe.utils.get_datetime(doc.to_time)
-        date_str = _format_slovenian_date(from_time)
-
-        message = f"""
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;padding:32px;font-family:Arial,Helvetica,sans-serif;color:#111827;">
-  <tr>
-    <td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden;">
-        <tr>
-          <td style="background-color:#4f46e5;padding:24px 28px;color:#ffffff;font-size:20px;font-weight:bold;text-align:center;">Potrditev rezervacije</td>
-        </tr>
-        <tr>
-          <td style="padding:28px;">
-            <p style="margin:0 0 20px;font-size:15px;color:#374151;">Pozdravljeni, {frappe.utils.cstr(doc.customer_name)}!</p>
-            <p style="margin:0 0 20px;font-size:15px;color:#374151;">Vaša rezervacija je potrjena. Spodaj so podrobnosti:</p>
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;border-radius:12px;padding:16px 20px;font-size:14px;">
-              <tr><td style="padding:4px 0;color:#6b7280;">Termin z</td><td style="padding:4px 0;font-weight:600;text-align:right;">{frappe.utils.cstr(item_name)}</td></tr>
-              <tr><td style="padding:4px 0;color:#6b7280;">Datum</td><td style="padding:4px 0;font-weight:600;text-align:right;">{date_str}</td></tr>
-              <tr><td style="padding:4px 0;color:#6b7280;">Ura</td><td style="padding:4px 0;font-weight:600;text-align:right;">{from_time.strftime("%H:%M")} – {to_time.strftime("%H:%M")}</td></tr>
-              <tr><td style="padding:4px 0;color:#6b7280;">Referenčna številka</td><td style="padding:4px 0;font-weight:700;text-align:right;">{frappe.utils.cstr(doc.booking_ref)}</td></tr>
-            </table>
-            <p style="margin:20px 0 8px;font-size:13px;color:#6b7280;">Referenčno številko shranite, da si boste rezervacijo lahko pozneje ogledali ali jo preklicali:</p>
-            <a href="{manage_url}" style="display:inline-block;background-color:#4f46e5;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 24px;border-radius:10px;">Poglej mojo rezervacijo</a>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-"""
+        ctx = _reservation_email_context(doc)
         frappe.sendmail(
             recipients=[customer_email],
-            subject=f"Potrditev rezervacije — {item_name}",
-            message=message,
+            subject=f"Potrditev rezervacije — {ctx['item_name']}",
+            template="reservation_confirmation",
+            args=ctx,
             reference_doctype="Reservation",
             reference_name=doc.name,
             header="Potrditev rezervacije",
         )
     except Exception:
         frappe.log_error(frappe.get_traceback(), "send reservation confirmation email")
+
+
+def _send_cancellation_notice(access_token):
+    """Send a cancellation email for a public reservation (best-effort, never blocks)."""
+    if not access_token:
+        return
+    try:
+        doc = frappe.db.get_value(
+            "Reservation",
+            {"access_token": access_token},
+            ["name", "customer_name", "customer_email", "booking_ref", "from_time", "to_time", "reservation_item"],
+            as_dict=True,
+        )
+        if not doc or not _is_valid_email(doc.customer_email):
+            return
+        ctx = _reservation_email_context(doc)
+        frappe.sendmail(
+            recipients=[doc.customer_email],
+            subject=f"Preklic rezervacije — {ctx['item_name']}",
+            template="reservation_cancelled",
+            args=ctx,
+            reference_doctype="Reservation",
+            reference_name=doc.name,
+            header="Preklic rezervacije",
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "send reservation cancellation email")
 
 
 @frappe.whitelist(allow_guest=True)
@@ -246,7 +262,10 @@ def lookup_reservation(email, booking_ref):
 def cancel_reservation(access_token):
     """Cancel a reservation using access token."""
     from bookings.bookings.doctype.reservation.reservation import cancel_reservation as cancel_res
-    return cancel_res(access_token)
+    result = cancel_res(access_token)
+    if result and result.get("success"):
+        _send_cancellation_notice(access_token)
+    return result
 
 
 @frappe.whitelist()
