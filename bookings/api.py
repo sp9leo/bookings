@@ -72,6 +72,59 @@ def get_rooms():
 
 
 @frappe.whitelist(allow_guest=True)
+def get_public_room_week(room, start_date, end_date):
+    """Public, read-only occupancy grid for one room.
+
+    Returns only free/occupied status per time slot — never booker names, emails
+    or notes — so the anonymous /room display can render it safely.
+    """
+    from frappe.utils import add_days
+    from bookings.bookings.doctype.room_booking.room_booking import (
+        _slot_booked_rooms,
+        _combine_datetime,
+    )
+
+    if not room:
+        frappe.throw("Room is required")
+
+    slots = []
+    for period in _global_periods():
+        start_hm = _time_of(period.get("start_time"))
+        if not start_hm:
+            continue
+        slots.append({
+            "start": start_hm,
+            "end": _time_of(period.get("end_time")) or _add_hour(start_hm),
+            "label": period.get("label") or start_hm,
+        })
+
+    dates = []
+    current = frappe.utils.getdate(start_date)
+    end = frappe.utils.getdate(end_date)
+    while current <= end:
+        dates.append(frappe.utils.format_date(current, "yyyy-MM-dd"))
+        current = add_days(current, 1)
+
+    grid = []
+    for date_str in dates:
+        for slot in slots:
+            start_hm = slot["start"]
+            booked = len(_slot_booked_rooms(room, date_str, start_hm))
+            slot_datetime = datetime.strptime(
+                _combine_datetime(date_str, start_hm), "%Y-%m-%d %H:%M:%S"
+            )
+            if slot_datetime < datetime.now():
+                status = "past"
+            elif booked > 0:
+                status = "occupied"
+            else:
+                status = "free"
+            grid.append({"date": date_str, "time": start_hm, "status": status})
+
+    return {"slots": slots, "grid": grid}
+
+
+@frappe.whitelist(allow_guest=True)
 def get_slots(item, date=None):
     """Get slots for an item (including booked/full ones; clients filter by availability)."""
     filters = {
