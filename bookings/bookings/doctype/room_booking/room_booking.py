@@ -272,7 +272,16 @@ def update_recurring_group(booking_ref, frequency, interval, until_date, scope="
     group = (booking.get("recurring_group_id") or "").strip()
 
     if not group:
-        frappe.throw("This booking is not part of a recurring series")
+        if not frequency or not until_date:
+            return {"success": True, "unlinked": True}
+        if getdate(until_date) < getdate(booking.booking_date):
+            frappe.throw("The recurrence end date is before the series start")
+        group = generate_booking_ref()
+        booking.recurring_group_id = group
+        booking.recurring_frequency = frequency
+        booking.recurring_interval = max(1, int(interval or 1))
+        booking.recurring_until_date = str(getdate(until_date))
+        booking.save(ignore_permissions=True)
 
     members = frappe.get_all(
         "Room Booking",
@@ -325,14 +334,18 @@ def update_recurring_group(booking_ref, frequency, interval, until_date, scope="
 
     start_hm = _time_of(booking.from_time)
     end_hm = _time_of(booking.to_time)
+    skipped = 0
     for mdate in desired:
         if mdate in existing:
             continue
-        _insert_room_booking(
-            booking.reservation_item, str(mdate), start_hm, end_hm,
-            booking.notes, booking.customer_name, booking.customer_email,
-            group, frequency, interval, str(until),
-        )
+        try:
+            _insert_room_booking(
+                booking.reservation_item, str(mdate), start_hm, end_hm,
+                booking.notes, booking.customer_name, booking.customer_email,
+                group, frequency, interval, str(until),
+            )
+        except frappe.ValidationError:
+            skipped += 1
 
     for name in members:
         doc = frappe.get_doc("Room Booking", name["name"])
@@ -343,7 +356,7 @@ def update_recurring_group(booking_ref, frequency, interval, until_date, scope="
         doc.recurring_until_date = str(until)
         doc.save(ignore_permissions=True)
 
-    return {"success": True, "occurrences": len(desired)}
+    return {"success": True, "occurrences": len(desired) - skipped, "skipped": skipped}
 
 
 @frappe.whitelist()
