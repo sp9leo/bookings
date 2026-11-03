@@ -32,7 +32,7 @@ def _combine_datetime(date_val, time_val):
 
 
 @frappe.whitelist()
-def create_reservation(slot, customer_name, customer_email, notes=None):
+def create_reservation(slot, customer_name, customer_email, notes=None, child_name=None, phone=None):
     """Create a new reservation from an available slot."""
     slot_doc = frappe.get_doc("Available Slot", slot)
     
@@ -45,6 +45,8 @@ def create_reservation(slot, customer_name, customer_email, notes=None):
         "slot": slot,
         "customer_name": customer_name,
         "customer_email": customer_email,
+        "child_name": child_name,
+        "phone": phone,
         "from_time": _combine_datetime(slot_doc.slot_date, slot_doc.start_time),
         "to_time": _combine_datetime(slot_doc.slot_date, slot_doc.end_time),
         "notes": notes,
@@ -106,6 +108,7 @@ def get_reservations_by_email(email):
         "Reservation",
         filters={"customer_email": email},
         fields=["name", "booking_ref", "customer_name", "customer_email", 
+                "child_name", "phone",
                 "from_time", "to_time", "status", "reservation_item", "slot"],
         order_by="from_time desc"
     )
@@ -131,6 +134,7 @@ def get_tutor_reservations(user):
             "status": ["!=", "Cancelled"]
         },
         fields=["name", "booking_ref", "customer_name", "customer_email",
+                "child_name", "phone",
                 "from_time", "to_time", "status", "reservation_item", "slot"],
         order_by="from_time asc"
     )

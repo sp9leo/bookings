@@ -10,6 +10,8 @@
   "slot",
   "customer_name",
   "customer_email",
+  "child_name",
+  "phone",
   "from_time",
   "to_time",
   "notes",
@@ -47,6 +49,16 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Customer Email"
+  },
+  {
+   "fieldname": "child_name",
+   "fieldtype": "Data",
+   "label": "Child Name"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone"
   },
   {
    "fieldname": "from_time",

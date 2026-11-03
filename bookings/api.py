@@ -145,10 +145,10 @@ def get_slots(item, date=None):
 
 
 @frappe.whitelist(allow_guest=True)
-def reserve(slot, customer_name, customer_email, notes=None):
+def reserve(slot, customer_name, customer_email, notes=None, child_name=None, phone=None):
     """Create a reservation for a slot."""
     from bookings.bookings.doctype.reservation.reservation import create_reservation
-    result = create_reservation(slot, customer_name, customer_email, notes)
+    result = create_reservation(slot, customer_name, customer_email, notes, child_name, phone)
     _send_reservation_confirmation(result, customer_email)
     return result
 
@@ -740,6 +740,7 @@ def get_item_reservations(item):
         "Reservation",
         filters={"reservation_item": item},
         fields=["name", "booking_ref", "customer_name", "customer_email",
+                "child_name", "phone",
                 "from_time", "to_time", "status", "reservation_item", "slot"],
         order_by="from_time desc"
     )
@@ -759,6 +760,7 @@ def get_all_reservations():
             "status": ["!=", "Cancelled"],
         },
         fields=["name", "booking_ref", "customer_name", "customer_email",
+                "child_name", "phone",
                 "from_time", "to_time", "status", "reservation_item", "slot"],
         order_by="from_time desc"
     )
