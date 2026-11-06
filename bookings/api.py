@@ -7,6 +7,7 @@ from datetime import datetime
 
 import frappe
 
+from bookings.formatting import format_slovenian_date
 from bookings.setup import ROLE_BOOKINGS_MANAGER, ROLE_BOOKINGS_USER
 
 
@@ -155,16 +156,6 @@ def reserve(slot, customer_name, customer_email, notes=None, child_name=None, ph
     return result
 
 
-_SL_WEEKDAYS = ["ponedeljek", "torek", "sreda", "četrtek", "petek", "sobota", "nedelja"]
-_SL_MONTHS = ["januar", "februar", "marec", "april", "maj", "junij", "julij", "avgust", "september", "oktober", "november", "december"]
-
-
-def _format_slovenian_date(dt):
-    return "{} {} {} {}".format(
-        _SL_WEEKDAYS[dt.weekday()], dt.day, _SL_MONTHS[dt.month - 1], dt.year
-    )
-
-
 def _reservation_email_context(doc):
     """Build the Jinja context shared by reservation emails."""
     item = frappe.db.get_value(
@@ -179,6 +170,8 @@ def _reservation_email_context(doc):
     manage_path = "/rooms/my" if item_type == "Room" else "/book/my"
     from_time = frappe.utils.get_datetime(doc.from_time)
     to_time = frappe.utils.get_datetime(doc.to_time)
+    time_from = from_time.strftime("%H:%M")
+    time_to = to_time.strftime("%H:%M")
 
     return {
         "doctype": "Reservation",
@@ -193,9 +186,13 @@ def _reservation_email_context(doc):
         # under that name too and keep the raw link separately.
         "reservation_item": frappe.utils.cstr(item_name),
         "reservation_item_id": frappe.utils.cstr(doc.reservation_item),
-        "date_str": _format_slovenian_date(from_time),
-        "time_from": from_time.strftime("%H:%M"),
-        "time_to": to_time.strftime("%H:%M"),
+        "date_str": format_slovenian_date(from_time),
+        # from_time/to_time are Datetime fields, which would render as
+        # "2026-11-06 16:00:00". Expose the same names as HH:MM for emails.
+        "from_time": time_from,
+        "to_time": time_to,
+        "time_from": time_from,
+        "time_to": time_to,
         "booking_ref": frappe.utils.cstr(doc.booking_ref),
         "manage_url": frappe.utils.get_url() + manage_path,
     }

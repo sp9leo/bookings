@@ -15,6 +15,10 @@
   "phone",
   "from_time",
   "to_time",
+  "date_str",
+  "time_from",
+  "time_to",
+  "manage_url",
   "notes",
   "status",
   "booking_ref",
@@ -79,6 +83,34 @@
    "fieldtype": "Datetime",
    "in_list_view": 1,
    "label": "To"
+  },
+  {
+   "fieldname": "date_str",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Date Display",
+   "read_only": 1
+  },
+  {
+   "fieldname": "time_from",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "From Time Display",
+   "read_only": 1
+  },
+  {
+   "fieldname": "time_to",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "To Time Display",
+   "read_only": 1
+  },
+  {
+   "fieldname": "manage_url",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Manage URL",
+   "read_only": 1
   },
   {
    "fieldname": "notes",

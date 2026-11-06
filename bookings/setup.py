@@ -51,8 +51,50 @@ def backfill_reservation_item_name():
     )
 
 
+def backfill_reservation_display_fields():
+    """Fill the hidden email display fields for older reservations."""
+    from bookings.formatting import format_slovenian_date
+
+    reservations = frappe.get_all(
+        "Reservation",
+        filters={"date_str": ("is", "not set")},
+        fields=["name", "from_time", "to_time", "reservation_item"],
+    )
+    for reservation in reservations:
+        from_time = (
+            frappe.utils.get_datetime(reservation.from_time)
+            if reservation.from_time
+            else None
+        )
+        to_time = (
+            frappe.utils.get_datetime(reservation.to_time)
+            if reservation.to_time
+            else None
+        )
+        item_type = (
+            frappe.db.get_value(
+                "Reservation Item", reservation.reservation_item, "item_type"
+            )
+            if reservation.reservation_item
+            else None
+        )
+        frappe.db.set_value(
+            "Reservation",
+            reservation.name,
+            {
+                "date_str": format_slovenian_date(from_time) if from_time else "",
+                "time_from": from_time.strftime("%H:%M") if from_time else "",
+                "time_to": to_time.strftime("%H:%M") if to_time else "",
+                "manage_url": frappe.utils.get_url()
+                + ("/rooms/my" if item_type == "Room" else "/book/my"),
+            },
+            update_modified=False,
+        )
+
+
 def after_migrate():
     ensure_bookings_manager_role()
     ensure_bookings_user_role()
     ensure_user_color_field()
     backfill_reservation_item_name()
+    backfill_reservation_display_fields()

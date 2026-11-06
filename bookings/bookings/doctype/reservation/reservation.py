@@ -6,6 +6,8 @@ import secrets
 import string
 from frappe.utils import now_datetime
 
+from bookings.formatting import format_slovenian_date
+
 
 def generate_booking_ref():
     """Generate a 6-character booking reference."""
@@ -146,4 +148,34 @@ from frappe.model.document import Document
 
 
 class Reservation(Document):
-	pass
+    def validate(self):
+        self.set_display_fields()
+
+    def set_display_fields(self):
+        """Keep email display values on the document.
+
+        Frappe's Email Template preview renders against the document rather
+        than the API context, so variables such as {{ date_str }} need real
+        fields to work there as well.
+        """
+        from_time = frappe.utils.get_datetime(self.from_time) if self.from_time else None
+        to_time = frappe.utils.get_datetime(self.to_time) if self.to_time else None
+
+        self.date_str = format_slovenian_date(from_time) if from_time else ""
+        self.time_from = from_time.strftime("%H:%M") if from_time else ""
+        self.time_to = to_time.strftime("%H:%M") if to_time else ""
+
+        item = (
+            frappe.db.get_value(
+                "Reservation Item",
+                self.reservation_item,
+                ["item_name", "item_type"],
+                as_dict=True,
+            )
+            if self.reservation_item
+            else None
+        )
+        self.item_name = (item.item_name if item else "") or ""
+        item_type = (item.item_type if item else "") or ""
+        manage_path = "/rooms/my" if item_type == "Room" else "/book/my"
+        self.manage_url = frappe.utils.get_url() + manage_path
