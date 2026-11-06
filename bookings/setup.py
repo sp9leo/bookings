@@ -38,7 +38,21 @@ def ensure_bookings_user_role():
     ensure_role(ROLE_BOOKINGS_USER)
 
 
+def backfill_reservation_item_name():
+    """Fill the read-only Item Name field for reservations created before it existed."""
+    frappe.db.sql(
+        """
+        update `tabReservation` r
+        join `tabReservation Item` i on i.name = r.reservation_item
+        set r.item_name = i.item_name
+        where ifnull(r.item_name, '') = ''
+          and ifnull(r.reservation_item, '') != ''
+        """
+    )
+
+
 def after_migrate():
     ensure_bookings_manager_role()
     ensure_bookings_user_role()
     ensure_user_color_field()
+    backfill_reservation_item_name()

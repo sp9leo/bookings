@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "reservation_item",
+  "item_name",
   "slot",
   "customer_name",
   "customer_email",
@@ -29,6 +30,13 @@
    "in_list_view": 1,
    "label": "Item",
    "options": "Reservation Item"
+  },
+  {
+   "fetch_from": "reservation_item.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1
   },
   {
    "fieldname": "slot",
@@ -120,7 +128,7 @@
  "grid_page_length": 50,
   "index_web_pages_for_search": 1,
   "links": [],
- "modified": "2026-03-22 10:00:00.000000",
+ "modified": "2026-11-06 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Bookings",
  "name": "Reservation",

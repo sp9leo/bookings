@@ -1,6 +1,8 @@
 # Bookings Module API
 # Public and internal endpoints for the booking system
 
+import inspect
+import re
 from datetime import datetime
 
 import frappe
@@ -186,6 +188,11 @@ def _reservation_email_context(doc):
         "child_name": frappe.utils.cstr(doc.get("child_name")),
         "phone": frappe.utils.cstr(doc.get("phone")),
         "item_name": frappe.utils.cstr(item_name),
+        # Existing Frappe Email Templates use {{ reservation_item }}. The
+        # Reservation field is a link (ITM-####), so expose the readable name
+        # under that name too and keep the raw link separately.
+        "reservation_item": frappe.utils.cstr(item_name),
+        "reservation_item_id": frappe.utils.cstr(doc.reservation_item),
         "date_str": _format_slovenian_date(from_time),
         "time_from": from_time.strftime("%H:%M"),
         "time_to": to_time.strftime("%H:%M"),
@@ -195,14 +202,22 @@ def _reservation_email_context(doc):
 
 
 def _is_valid_email(email):
-    import re
-
     return bool(re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", email or ""))
 
 
 _EMAIL_TEMPLATE_CANDIDATES = {
-    "reservation_confirmation": ("Reservation Confirmation", "reservation_confirmation"),
-    "reservation_cancelled": ("Reservation Cancelled", "reservation_cancelled"),
+    "reservation_confirmation": (
+        "Reservation Confirmation",
+        "reservation_confirmation",
+        "Potrditev rezervacije",
+        "Rezervacija potrjena",
+    ),
+    "reservation_cancelled": (
+        "Reservation Cancelled",
+        "reservation_cancelled",
+        "Preklic rezervacije",
+        "Rezervacija preklicana",
+    ),
 }
 
 
@@ -214,20 +229,66 @@ def _get_email_template(template_name):
     return None
 
 
-def _send_template_email(template_name, default_subject, ctx, recipients, doc, header):
+def _is_full_html_document(html):
+    """True when html is a complete document instead of a body fragment."""
+    if not html:
+        return False
+    start = html.lstrip()[:200].lower()
+    return start.startswith("<!doctype") or start.startswith("<html")
+
+
+def _sendmail_supports(parameter):
+    """Check optional sendmail arguments that only exist on newer Frappe."""
+    try:
+        return parameter in inspect.signature(frappe.sendmail).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def _prepare_email_message(html):
+    """Return (message, raw_html) so a full document is never wrapped twice."""
+    if not _is_full_html_document(html):
+        return html, False
+    if _sendmail_supports("raw_html"):
+        return html, True
+    # Without raw_html support the standard.html wrapper is unavoidable, so send
+    # just the body to avoid nesting <html>/<body> inside another document.
+    match = re.search(r"<body[^>]*>(.*)</body>", html, re.IGNORECASE | re.DOTALL)
+    return (match.group(1) if match else html), False
+
+
+def _send_html_email(subject, html, recipients, doc):
+    """Send a rendered HTML email without letting Frappe nest documents."""
+    message, raw_html = _prepare_email_message(html)
+    kwargs = {
+        "recipients": recipients,
+        "subject": subject,
+        "message": message,
+        "reference_doctype": "Reservation",
+        "reference_name": doc.name,
+    }
+    if raw_html:
+        kwargs["raw_html"] = True
+        # The document already carries inline styles. Skipping Frappe's
+        # email.css avoids its !important paragraph margins overriding them.
+        if _sendmail_supports("add_css"):
+            kwargs["add_css"] = False
+    frappe.sendmail(**kwargs)
+
+
+def _send_template_email(template_name, default_subject, ctx, recipients, doc):
     """Send using a Frappe Email Template, falling back to the app's Jinja template."""
     try:
         email_template = _get_email_template(template_name)
         if email_template:
             formatted = email_template.get_formatted_email(ctx)
-            if formatted and formatted.get("message"):
-                frappe.sendmail(
-                    recipients=recipients,
+            message = (formatted or {}).get("message")
+            if message:
+                _send_html_email(
                     subject=formatted.get("subject") or default_subject,
-                    message=formatted["message"],
-                    reference_doctype="Reservation",
-                    reference_name=doc.name,
-                    header=header,
+                    html=message,
+                    recipients=recipients,
+                    doc=doc,
                 )
                 return
     except Exception:
@@ -236,14 +297,14 @@ def _send_template_email(template_name, default_subject, ctx, recipients, doc, h
             f"render Email Template for {template_name}",
         )
 
-    frappe.sendmail(
-        recipients=recipients,
+    from frappe.utils.jinja import get_email_from_template
+
+    html, _text_content = get_email_from_template(template_name, ctx)
+    _send_html_email(
         subject=default_subject,
-        template=template_name,
-        args=ctx,
-        reference_doctype="Reservation",
-        reference_name=doc.name,
-        header=header,
+        html=html,
+        recipients=recipients,
+        doc=doc,
     )
 
 
@@ -270,7 +331,6 @@ def _send_reservation_confirmation(result, customer_email):
             ctx=ctx,
             recipients=[customer_email],
             doc=doc,
-            header="Potrditev rezervacije",
         )
     except Exception:
         frappe.log_error(frappe.get_traceback(), "send reservation confirmation email")
@@ -297,7 +357,6 @@ def _send_cancellation_notice(access_token):
             ctx=ctx,
             recipients=[doc.customer_email],
             doc=doc,
-            header="Preklic rezervacije",
         )
     except Exception:
         frappe.log_error(frappe.get_traceback(), "send reservation cancellation email")
