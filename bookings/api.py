@@ -179,7 +179,12 @@ def _reservation_email_context(doc):
     to_time = frappe.utils.get_datetime(doc.to_time)
 
     return {
+        "doctype": "Reservation",
+        "name": frappe.utils.cstr(doc.name),
         "customer_name": frappe.utils.cstr(doc.customer_name),
+        "customer_email": frappe.utils.cstr(doc.get("customer_email")),
+        "child_name": frappe.utils.cstr(doc.get("child_name")),
+        "phone": frappe.utils.cstr(doc.get("phone")),
         "item_name": frappe.utils.cstr(item_name),
         "date_str": _format_slovenian_date(from_time),
         "time_from": from_time.strftime("%H:%M"),
@@ -195,6 +200,53 @@ def _is_valid_email(email):
     return bool(re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", email or ""))
 
 
+_EMAIL_TEMPLATE_CANDIDATES = {
+    "reservation_confirmation": ("Reservation Confirmation", "reservation_confirmation"),
+    "reservation_cancelled": ("Reservation Cancelled", "reservation_cancelled"),
+}
+
+
+def _get_email_template(template_name):
+    """Return the Frappe Email Template for an app template name, if configured."""
+    for candidate in _EMAIL_TEMPLATE_CANDIDATES.get(template_name, (template_name,)):
+        if frappe.db.exists("Email Template", candidate):
+            return frappe.get_doc("Email Template", candidate)
+    return None
+
+
+def _send_template_email(template_name, default_subject, ctx, recipients, doc, header):
+    """Send using a Frappe Email Template, falling back to the app's Jinja template."""
+    try:
+        email_template = _get_email_template(template_name)
+        if email_template:
+            formatted = email_template.get_formatted_email(ctx)
+            if formatted and formatted.get("message"):
+                frappe.sendmail(
+                    recipients=recipients,
+                    subject=formatted.get("subject") or default_subject,
+                    message=formatted["message"],
+                    reference_doctype="Reservation",
+                    reference_name=doc.name,
+                    header=header,
+                )
+                return
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            f"render Email Template for {template_name}",
+        )
+
+    frappe.sendmail(
+        recipients=recipients,
+        subject=default_subject,
+        template=template_name,
+        args=ctx,
+        reference_doctype="Reservation",
+        reference_name=doc.name,
+        header=header,
+    )
+
+
 def _send_reservation_confirmation(result, customer_email):
     """Send a confirmation email for a public booking (best-effort, never blocks)."""
     if not result or not result.get("name"):
@@ -205,19 +257,19 @@ def _send_reservation_confirmation(result, customer_email):
         doc = frappe.db.get_value(
             "Reservation",
             result["name"],
-            ["name", "customer_name", "booking_ref", "from_time", "to_time", "reservation_item"],
+            ["name", "customer_name", "customer_email", "child_name", "phone",
+             "booking_ref", "from_time", "to_time", "reservation_item"],
             as_dict=True,
         )
         if not doc:
             return
         ctx = _reservation_email_context(doc)
-        frappe.sendmail(
+        _send_template_email(
+            template_name="reservation_confirmation",
+            default_subject=f"Potrditev rezervacije — {ctx['item_name']}",
+            ctx=ctx,
             recipients=[customer_email],
-            subject=f"Potrditev rezervacije — {ctx['item_name']}",
-            template="reservation_confirmation",
-            args=ctx,
-            reference_doctype="Reservation",
-            reference_name=doc.name,
+            doc=doc,
             header="Potrditev rezervacije",
         )
     except Exception:
@@ -232,19 +284,19 @@ def _send_cancellation_notice(access_token):
         doc = frappe.db.get_value(
             "Reservation",
             {"access_token": access_token},
-            ["name", "customer_name", "customer_email", "booking_ref", "from_time", "to_time", "reservation_item"],
+            ["name", "customer_name", "customer_email", "child_name", "phone",
+             "booking_ref", "from_time", "to_time", "reservation_item"],
             as_dict=True,
         )
         if not doc or not _is_valid_email(doc.customer_email):
             return
         ctx = _reservation_email_context(doc)
-        frappe.sendmail(
+        _send_template_email(
+            template_name="reservation_cancelled",
+            default_subject=f"Preklic rezervacije — {ctx['item_name']}",
+            ctx=ctx,
             recipients=[doc.customer_email],
-            subject=f"Preklic rezervacije — {ctx['item_name']}",
-            template="reservation_cancelled",
-            args=ctx,
-            reference_doctype="Reservation",
-            reference_name=doc.name,
+            doc=doc,
             header="Preklic rezervacije",
         )
     except Exception:
