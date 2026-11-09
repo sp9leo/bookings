@@ -1,27 +1,35 @@
 <!DOCTYPE html>
 <html lang="sl">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>Potrditev rezervacije</title>
 </head>
+
 <body bgcolor="#f9fafb" style="margin:0;padding:0;background-color:#f9fafb;">
-  <div style="display:none;font-size:1px;color:#f9fafb;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  <div
+    style="display:none;font-size:1px;color:#f9fafb;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
     Vaša rezervacija je potrjena. Referenčna številka {{ booking_ref | e }}.
   </div>
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f9fafb" style="background-color:#f9fafb;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f9fafb"
+    style="background-color:#f9fafb;">
     <tr>
       <td align="center" style="padding:32px 16px;">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" align="center" bgcolor="#ffffff" style="width:560px;max-width:100%;background-color:#ffffff;border:1px solid #f3f4f6;border-radius:16px;overflow:hidden;">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" align="center"
+          bgcolor="#ffffff"
+          style="width:560px;max-width:100%;background-color:#ffffff;border:1px solid #f3f4f6;border-radius:16px;overflow:hidden;">
 
           <!-- Brand header -->
           <tr>
             <td bgcolor="#ffffff" style="padding:22px 28px;border-bottom:1px solid #f3f4f6;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td width="36" height="36" align="center" valign="middle" bgcolor="#10b981" style="width:36px;height:36px;background-color:#10b981;border-radius:10px;color:#ffffff;font-size:18px;font-weight:bold;line-height:36px;">R</td>
+                  <td width="36" height="36" align="center" valign="middle" bgcolor="#10b981"
+                    style="width:36px;height:36px;background-color:#10b981;border-radius:10px;color:#ffffff;font-size:18px;font-weight:bold;line-height:36px;">
+                    R</td>
                   <td style="padding-left:10px;font-size:18px;font-weight:bold;color:#111827;">Rezervacije</td>
                 </tr>
               </table>
@@ -37,29 +45,39 @@
                   <td align="center" style="padding-bottom:16px;">
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                       <tr>
-                        <td width="56" height="56" align="center" valign="middle" bgcolor="#d1fae5" style="width:56px;height:56px;background-color:#d1fae5;border-radius:50%;color:#059669;font-size:26px;line-height:56px;">&#10003;</td>
+                        <td width="56" height="56" align="center" valign="middle" bgcolor="#d1fae5"
+                          style="width:56px;height:56px;background-color:#d1fae5;border-radius:50%;color:#059669;font-size:26px;line-height:56px;">
+                          &#10003;</td>
                       </tr>
                     </table>
                   </td>
                 </tr>
                 <tr>
-                  <td align="center" style="font-size:22px;font-weight:bold;color:#111827;padding-bottom:8px;">Rezervacija potrjena</td>
+                  <td align="center" style="font-size:22px;font-weight:bold;color:#111827;padding-bottom:8px;">
+                    Rezervacija potrjena</td>
                 </tr>
                 <tr>
-                  <td align="center" style="font-size:14px;line-height:20px;color:#6b7280;padding-bottom:24px;">Vaš termin je rezerviran. Podrobnosti najdete spodaj.</td>
+                  <td align="center" style="font-size:14px;line-height:20px;color:#6b7280;padding-bottom:24px;">Vaš
+                    termin je rezerviran. Podrobnosti najdete spodaj.</td>
                 </tr>
               </table>
 
-              <p style="margin:0 0 16px;font-size:15px;line-height:22px;color:#374151;">Pozdravljeni, {{ customer_name | e }}!</p>
-              <p style="margin:0 0 20px;font-size:15px;line-height:22px;color:#374151;">Vaša rezervacija je potrjena. Prosimo, shranite referenčno številko, da si boste rezervacijo lahko pozneje ogledali ali jo preklicali.</p>
+              <p style="margin:0 0 16px;font-size:15px;line-height:22px;color:#374151;">Pozdravljeni, {{ customer_name |
+                e }}!</p>
+              <p style="margin:0 0 20px;font-size:15px;line-height:22px;color:#374151;">Vaša rezervacija je potrjena.
+                Prosimo, shranite referenčno številko, da si boste rezervacijo lahko pozneje ogledali ali jo preklicali.
+              </p>
 
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f9fafb" style="background-color:#f9fafb;border:1px solid #f3f4f6;border-radius:12px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f9fafb"
+                style="background-color:#f9fafb;border:1px solid #f3f4f6;border-radius:12px;">
                 <tr>
                   <td style="padding:16px 20px;">
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;line-height:20px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                      style="font-size:14px;line-height:20px;">
                       <tr>
                         <td style="padding:5px 0;color:#6b7280;">Termin z</td>
-                        <td style="padding:5px 0;font-weight:600;color:#111827;text-align:right;">{{ item_name | e }}</td>
+                        <td style="padding:5px 0;font-weight:600;color:#111827;text-align:right;">{{ item_name | e }}
+                        </td>
                       </tr>
                       <tr>
                         <td style="padding:5px 0;color:#6b7280;">Datum</td>
@@ -67,12 +85,14 @@
                       </tr>
                       <tr>
                         <td style="padding:5px 0;color:#6b7280;">Ura</td>
-                        <td style="padding:5px 0;font-weight:600;color:#111827;text-align:right;">{{ time_from }} – {{ time_to }}</td>
+                        <td style="padding:5px 0;font-weight:600;color:#111827;text-align:right;">{{ time_from }} – {{
+                          time_to }}</td>
                       </tr>
                       {% if child_name %}
                       <tr>
                         <td style="padding:5px 0;color:#6b7280;">Ime otroka</td>
-                        <td style="padding:5px 0;font-weight:600;color:#111827;text-align:right;">{{ child_name | e }}</td>
+                        <td style="padding:5px 0;font-weight:600;color:#111827;text-align:right;">{{ child_name | e }}
+                        </td>
                       </tr>
                       {% endif %}
                       {% if phone %}
@@ -86,35 +106,48 @@
                 </tr>
               </table>
 
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#10b981" style="margin-top:16px;background-color:#10b981;border-radius:12px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#10b981"
+                style="margin-top:16px;background-color:#10b981;border-radius:12px;">
                 <tr>
                   <td style="padding:18px 20px;">
-                    <p style="margin:0 0 4px;font-size:12px;line-height:16px;color:#d1fae5;text-transform:uppercase;letter-spacing:0.5px;">Referenčna številka</p>
-                    <p style="margin:0;font-size:24px;line-height:30px;font-weight:bold;color:#ffffff;letter-spacing:3px;">{{ booking_ref | e }}</p>
-                    <p style="margin:6px 0 0;font-size:12px;line-height:16px;color:#d1fae5;">Shranite jo za ogled ali preklic rezervacije.</p>
+                    <p
+                      style="margin:0 0 4px;font-size:12px;line-height:16px;color:#d1fae5;text-transform:uppercase;letter-spacing:0.5px;">
+                      Referenčna številka</p>
+                    <p
+                      style="margin:0;font-size:24px;line-height:30px;font-weight:bold;color:#ffffff;letter-spacing:3px;">
+                      {{ booking_ref | e }}</p>
+                    <p style="margin:6px 0 0;font-size:12px;line-height:16px;color:#d1fae5;">Shranite jo za ogled ali
+                      preklic rezervacije.</p>
                   </td>
                 </tr>
               </table>
 
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:24px auto 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"
+                style="margin:24px auto 0;">
                 <tr>
                   <td align="center" bgcolor="#10b981" style="border-radius:10px;padding:12px 28px;">
-                    <a href="{{ manage_url }}" style="display:inline-block;font-size:14px;line-height:20px;font-weight:bold;color:#ffffff;text-decoration:none;">Poglej mojo rezervacijo</a>
+                    <a href="{{ manage_url }}"
+                      style="display:inline-block;font-size:14px;line-height:20px;font-weight:bold;color:#ffffff;text-decoration:none;">Poglej
+                      mojo rezervacijo</a>
                   </td>
                 </tr>
               </table>
 
-              <p style="margin:20px 0 0;font-size:12px;line-height:18px;color:#9ca3af;text-align:center;">Če se termina ne morete udeležiti, ga pravočasno prekličite prek povezave zgoraj.</p>
+              <p style="margin:20px 0 0;font-size:12px;line-height:18px;color:#9ca3af;text-align:center;">Če se termina
+                ne morete udeležiti, ga pravočasno prekličite prek povezave zgoraj.</p>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td bgcolor="#ffffff" style="padding:20px 28px;border-top:1px solid #f3f4f6;text-align:center;font-size:12px;line-height:18px;color:#6b7280;">Rezervacije terminov</td>
+            <td bgcolor="#ffffff"
+              style="padding:20px 28px;border-top:1px solid #f3f4f6;text-align:center;font-size:12px;line-height:18px;color:#6b7280;">
+              Rezervacije terminov</td>
           </tr>
         </table>
       </td>
     </tr>
   </table>
 </body>
+
 </html>
